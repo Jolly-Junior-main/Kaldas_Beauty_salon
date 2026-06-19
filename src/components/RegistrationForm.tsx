@@ -10,6 +10,7 @@ import { PlusCircle, AlertCircle, Sparkles, X } from 'lucide-react';
 import { collection, doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { classifyCustomer } from '../lib/retention';
+import { convertToGregorian, ETHIOPIAN_MONTHS_EN, ETHIOPIAN_MONTHS_AM } from '../lib/ethiopianCalendar';
 
 interface RegistrationFormProps {
   existingCustomers: CustomerWithRetention[];
@@ -24,6 +25,12 @@ export default function RegistrationForm({ existingCustomers, onRegisterSuccess,
   const [phoneNumber, setPhoneNumber] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [notes, setNotes] = useState('');
+
+  // Ethiopian birthday selectors
+  const [calendarType, setCalendarType] = useState<'Gregorian' | 'Ethiopian'>('Gregorian');
+  const [etYear, setEtYear] = useState(1990);
+  const [etMonth, setEtMonth] = useState(1);
+  const [etDay, setEtDay] = useState(1);
   const [isDuplicate, setIsDuplicate] = useState(false);
   const [matchedCustomer, setMatchedCustomer] = useState<CustomerWithRetention | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,11 +79,22 @@ export default function RegistrationForm({ existingCustomers, onRegisterSuccess,
       const newCustRef = doc(collection(db, 'customers'));
       const customerId = newCustRef.id;
       const created_at = new Date().toISOString();
+      let finalBirthDate: string | null = birthDate || null;
+      if (calendarType === 'Ethiopian') {
+        const gregDate = convertToGregorian(etYear, etMonth, etDay);
+        if (gregDate) {
+          const gY = gregDate.getFullYear();
+          const gM = String(gregDate.getMonth() + 1).padStart(2, '0');
+          const gD = String(gregDate.getDate()).padStart(2, '0');
+          finalBirthDate = `${gY}-${gM}-${gD}`;
+        }
+      }
+
       const rawCustomer = {
         id: customerId,
         full_name: fullName.trim(),
         phone_number: phoneNumber.trim(),
-        birth_date: birthDate || null,
+        birth_date: finalBirthDate,
         created_at,
         notes_preferences: notes.trim() || null
       };
@@ -192,17 +210,89 @@ export default function RegistrationForm({ existingCustomers, onRegisterSuccess,
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-semibold text-neutral-500 mb-1.5 uppercase tracking-wider">
-                {dict.label_birthday}
-              </label>
-              <input
-                type="date"
-                value={birthDate}
-                onChange={(e) => setBirthDate(e.target.value)}
-                className="w-full px-4 py-2.5 text-sm bg-neutral-50 border border-neutral-200/65 rounded-xl focus:outline-none focus:border-neutral-950 focus:ring-1 focus:ring-neutral-950 text-neutral-800 transition-all font-medium"
-                id="reg-birthdate"
-              />
+            <div className="space-y-1">
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+                  {dict.label_birthday}
+                </label>
+                
+                {/* Calendar Type Selector */}
+                <div className="flex bg-neutral-100 p-0.5 rounded-lg text-[9px] font-extrabold uppercase border border-neutral-200/30">
+                  <button
+                    type="button"
+                    onClick={() => setCalendarType('Gregorian')}
+                    className={`px-1.5 py-0.5 rounded transition-all cursor-pointer ${
+                      calendarType === 'Gregorian'
+                        ? 'bg-white text-neutral-850 shadow-xs'
+                        : 'text-neutral-400'
+                    }`}
+                  >
+                    GREG
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarType('Ethiopian')}
+                    className={`px-1.5 py-0.5 rounded transition-all cursor-pointer ${
+                      calendarType === 'Ethiopian'
+                        ? 'bg-white text-neutral-850 shadow-xs'
+                        : 'text-neutral-400'
+                    }`}
+                  >
+                    ETH
+                  </button>
+                </div>
+              </div>
+
+              {calendarType === 'Gregorian' ? (
+                <input
+                  type="date"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
+                  className="w-full px-4 py-2.5 text-sm bg-neutral-50 border border-neutral-200/65 rounded-xl focus:outline-none focus:border-neutral-950 focus:ring-1 focus:ring-neutral-950 text-neutral-800 transition-all font-medium"
+                  id="reg-birthdate"
+                />
+              ) : (
+                <div className="flex gap-1">
+                  {/* Month */}
+                  <select
+                    value={etMonth}
+                    onChange={(e) => setEtMonth(parseInt(e.target.value, 10))}
+                    className="w-[45%] text-[11px] font-bold bg-neutral-50 border border-neutral-200/65 rounded-xl outline-none focus:border-neutral-950 focus:ring-1 focus:ring-neutral-950 text-neutral-800 transition-all cursor-pointer py-2 px-1 text-center"
+                  >
+                    {(lang === 'am' ? ETHIOPIAN_MONTHS_AM : ETHIOPIAN_MONTHS_EN).map((mName, ix) => (
+                      <option key={ix} value={ix + 1}>
+                        {mName.substring(0, 5)}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Day */}
+                  <select
+                    value={etDay}
+                    onChange={(e) => setEtDay(parseInt(e.target.value, 10))}
+                    className="w-[25%] text-[11px] font-bold bg-neutral-50 border border-neutral-200/65 rounded-xl outline-none focus:border-neutral-950 focus:ring-1 focus:ring-neutral-950 text-neutral-800 transition-all cursor-pointer py-2 px-1 text-center"
+                  >
+                    {Array.from({ length: etMonth === 13 ? 6 : 30 }, (_, i) => i + 1).map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Year */}
+                  <select
+                    value={etYear}
+                    onChange={(e) => setEtYear(parseInt(e.target.value, 10))}
+                    className="w-[30%] text-[11px] font-bold bg-neutral-50 border border-neutral-200/65 rounded-xl outline-none focus:border-neutral-950 focus:ring-1 focus:ring-neutral-950 text-neutral-800 transition-all cursor-pointer py-2 px-1 text-center font-mono"
+                  >
+                    {Array.from({ length: 90 }, (_, i) => 2018 - i).map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-neutral-500 mb-1.5 uppercase tracking-wider">

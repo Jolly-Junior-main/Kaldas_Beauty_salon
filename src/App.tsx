@@ -11,9 +11,14 @@ import CheckInModal from './components/CheckInModal';
 import ClientDashboard from './components/ClientDashboard';
 import AdminAnalytics from './components/AdminAnalytics';
 import KonjoLogo from './components/KonjoLogo';
+// @ts-expect-error - Vite handles jpg asset loading, TS bypass
+import salonInterior from './assets/images/luxury_beauty_salon_1781874528973.jpg';
+// @ts-expect-error - Vite handles jpg asset loading, TS bypass
+import salonVector from './assets/images/salon_vector_1781800194768.jpg';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { classifyCustomer } from './lib/retention';
+import { convertToEthiopian, formatEthiopianDate } from './lib/ethiopianCalendar';
 import { 
   Users, 
   Search, 
@@ -306,15 +311,23 @@ export default function App() {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[#FAF9F6] flex items-center justify-center p-4 font-sans antialiased text-[#2D2D2D] selection:bg-[#E5D5C8] relative overflow-hidden">
-        {/* Soft atmospheric background shapes */}
-        <div className="absolute top-1/4 -left-20 w-80 h-80 rounded-full bg-neutral-100 blur-3xl opacity-65" />
-        <div className="absolute bottom-1/4 -right-20 w-80 h-80 rounded-full bg-amber-50 blur-3xl opacity-50" />
+      <div 
+        className="min-h-screen flex items-center justify-center p-4 font-sans antialiased text-[#2D2D2D] selection:bg-[#E5D5C8] bg-cover bg-fixed bg-center relative overflow-hidden"
+        style={{ backgroundImage: `url(${salonInterior})` }}
+      >
+        {/* Premium semi-translucent backdrop overlay to preserve vibrant colors of the photo while ensuring top-tier usability */}
+        <div className="absolute inset-0 bg-neutral-950/40 backdrop-blur-[3px] pointer-events-none z-0" />
         
-        <div className="bg-white rounded-[32px] p-8 md:p-12 border border-neutral-200/50 shadow-ios-lg max-w-md w-full shrink-0 space-y-8 relative z-10 animate-fade-in text-center">
+        {/* Soft atmospheric background glow */}
+        <div className="absolute top-1/4 -left-20 w-80 h-80 rounded-full bg-white/10 blur-3xl opacity-30 z-0" />
+        <div className="absolute bottom-1/4 -right-20 w-80 h-80 rounded-full bg-amber-500/10 blur-3xl opacity-20 z-0" />
+        
+        <div className="bg-white/95 backdrop-blur-xl rounded-[32px] p-8 md:p-12 border border-neutral-200/50 shadow-2xl max-w-md w-full shrink-0 space-y-8 relative z-10 animate-fade-in text-center">
           
           <div className="space-y-3">
-            <span className="text-3xl">🌸</span>
+            <div className="flex justify-center mb-1">
+              <KonjoLogo className="w-32 h-32 text-neutral-900 drop-shadow-md" size={128} />
+            </div>
             <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Kaldas Beauty Salon</h1>
             <p className="text-[11px] text-neutral-400 font-extrabold uppercase tracking-widest">{lang === 'am' ? 'የአስተዳዳሪ ማረጋገጫ' : 'Administrative Access'}</p>
           </div>
@@ -327,7 +340,7 @@ export default function App() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-xs focus:ring-1 focus:ring-neutral-900 focus:outline-none focus:border-neutral-900 font-medium text-neutral-800 placeholder:text-neutral-350"
+                className="w-full bg-neutral-50/90 border border-neutral-200 rounded-xl p-3 text-xs focus:ring-1 focus:ring-neutral-900 focus:outline-none focus:border-neutral-900 font-medium text-neutral-800 placeholder:text-neutral-350"
                 placeholder="e.g. admin"
               />
             </div>
@@ -339,7 +352,7 @@ export default function App() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-xs focus:ring-1 focus:ring-neutral-900 focus:outline-none focus:border-neutral-900 font-medium text-neutral-800 placeholder:text-neutral-355"
+                className="w-full bg-neutral-50/90 border border-neutral-200 rounded-xl p-3 text-xs focus:ring-1 focus:ring-neutral-900 focus:outline-none focus:border-neutral-900 font-medium text-neutral-800 placeholder:text-neutral-355"
                 placeholder="••••••••"
               />
             </div>
@@ -374,16 +387,24 @@ export default function App() {
             </button>
           </div>
 
-          <p className="text-[10px] text-neutral-450 font-medium">
-            Default user is <strong className="font-bold">admin</strong> and password is <strong className="font-bold">admin</strong>
-          </p>
+
+        </div>
+
+        {/* Custom Developer Credits in bottom right corner */}
+        <div className="absolute bottom-4 right-4 z-10 text-white/90 text-[10px] md:text-xs font-semibold tracking-wide bg-neutral-950/50 backdrop-blur-md py-1.5 px-3.5 rounded-full border border-white/10 shadow-lg pointer-events-none select-none animate-fade-in">
+          Design and developed by <span className="text-amber-300 font-bold tracking-wider">VIAVELA TECHNOLOGY</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF9F6] font-sans antialiased text-[#2D2D2D] flex flex-col selection:bg-[#E5D5C8] selection:text-[#5A5A40]">
+    <div 
+      className="min-h-screen font-sans antialiased text-[#2D2D2D] flex flex-col selection:bg-[#E5D5C8] selection:text-[#5A5A40] bg-cover bg-fixed bg-center relative"
+      style={{ backgroundImage: `url(${salonInterior})` }}
+    >
+      {/* Premium semi-translucent backdrop overlay to ensure flawless contrast and elite readability */}
+      <div className="absolute inset-0 bg-[#FAF9F6]/45 backdrop-blur-[2px] pointer-events-none z-0" />
       
       {/* Dynamic top elegant confirmation banner */}
       {uiFeedback && (
@@ -394,21 +415,27 @@ export default function App() {
       )}
 
       {/* Main Luxury Header Bar - Styled with iOS glassmorphic translucency and clean borders */}
-      <header className="backdrop-blur-md bg-white/90 border-b border-neutral-200/60 py-2.5 px-4 md:py-4 md:px-12 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 sticky top-0 z-30 shadow-ios">
+      <header className="relative overflow-hidden backdrop-blur-md bg-white/70 border-b border-neutral-200/60 py-2.5 px-4 md:py-4 md:px-12 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 sticky top-0 z-30 shadow-ios">
         
+        {/* Highlight Background Image for navigation - subtle and elegant */}
+        <div 
+          className="absolute inset-0 z-0 bg-cover bg-center pointer-events-none opacity-[0.14] mix-blend-overlay"
+          style={{ backgroundImage: `url(${salonVector})` }}
+        />
+
         {/* Top/First Line on Mobile, Left-aligned on Desktop */}
-        <div className="flex items-center justify-between md:justify-start gap-4 w-full md:w-auto">
-          {/* Salon Branding info */}
-          <div className="flex items-center gap-2 md:gap-3">
-            <KonjoLogo size={36} className="ios-active-scale md:scale-110 shrink-0" />
-            <div>
+        <div className="relative z-10 flex items-center justify-between md:justify-start gap-4 w-full md:w-auto">
+          {/* Salon Branding info - styled as a beautiful premium oval box with a blackish background and white font */}
+          <div className="flex items-center gap-2.5 bg-neutral-900/95 text-white rounded-full py-1.5 px-4.5 md:py-2 md:px-6 shadow-ios-lg border border-neutral-800/80 shrink-0">
+            <KonjoLogo size={32} className="ios-active-scale md:scale-110 shrink-0" />
+            <div className="text-left">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <h1 className="text-base md:text-xl font-bold font-sans tracking-tight leading-none text-neutral-900">{dict.app_name}</h1>
-                <span className="text-[8px] md:text-[9px] uppercase tracking-wider font-extrabold bg-neutral-100 text-neutral-800 border border-neutral-200 rounded-full px-1.5 py-0.5 whitespace-nowrap">
+                <h1 className="text-sm md:text-base font-bold font-sans tracking-tight leading-none text-white">{dict.app_name}</h1>
+                <span className="text-[7.5px] md:text-[8.5px] uppercase tracking-wider font-extrabold bg-white/15 text-neutral-200 border border-white/10 rounded-full px-1.5 py-0.5 whitespace-nowrap">
                   {dict.mgmt_suite}
                 </span>
               </div>
-              <p className="text-[10px] text-neutral-400 mt-0.5 md:mt-1 font-semibold tracking-wide uppercase hidden sm:block">{dict.tagline}</p>
+              <p className="text-[8.5px] text-neutral-400 mt-0.5 font-bold tracking-wide uppercase hidden xs:block">{dict.tagline}</p>
             </div>
           </div>
 
@@ -440,7 +467,7 @@ export default function App() {
         </div>
 
         {/* Navigation Tabs - iOS Segments styled with soft kinetic compression */}
-        <div className="flex items-center gap-0.5 bg-neutral-100 border border-neutral-200/50 p-0.5 md:p-1 rounded-full w-full md:w-auto">
+        <div className="relative z-10 flex items-center gap-0.5 bg-neutral-100 border border-neutral-200/50 p-0.5 md:p-1 rounded-full w-full md:w-auto">
           <button
             onClick={() => setActiveTab('clients')}
             className={`flex-1 md:flex-initial px-2.5 md:px-5 py-1.5 md:py-2 rounded-full text-[11px] md:text-xs font-semibold flex items-center justify-center gap-1 md:gap-1.5 transition-all ios-active-scale whitespace-nowrap ${
@@ -482,7 +509,7 @@ export default function App() {
         </div>
 
         {/* Global Action Buttons */}
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="relative z-10 flex items-center gap-2 w-full md:w-auto">
           
           {/* Language Toggle (Desktop Only) */}
           <div className="hidden md:flex items-center gap-1 bg-neutral-100 border border-neutral-200/50 p-1 rounded-full shadow-xs mr-2">
@@ -538,7 +565,7 @@ export default function App() {
       </header>
 
       {/* Main Workspace Frame container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-8 space-y-6">
+      <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto p-4 md:p-8 space-y-6">
         
         {activeTab === 'clients' ? (
           
@@ -1051,19 +1078,27 @@ export default function App() {
             </div>
 
             <div className="divide-y divide-amber-100/60 overflow-hidden rounded-xl border border-amber-100 bg-amber-50/20 max-h-40 overflow-y-auto">
-              {birthdayClients.map((client) => (
-                <div key={client.id} className="p-2.5 px-3 flex items-center justify-between text-xs hover:bg-amber-100/20 transition-colors">
-                  <div>
-                    <span className="font-extrabold text-neutral-800 block leading-tight">{client.full_name}</span>
-                    <span className="block text-[9px] font-bold text-neutral-400 font-mono mt-0.5">{client.phone_number}</span>
+              {birthdayClients.map((client) => {
+                const etBirthday = client.birth_date ? convertToEthiopian(client.birth_date) : null;
+                return (
+                  <div key={client.id} className="p-2.5 px-3 flex items-center justify-between text-xs hover:bg-amber-100/20 transition-colors">
+                    <div>
+                      <span className="font-extrabold text-neutral-800 block leading-tight">{client.full_name}</span>
+                      {etBirthday && (
+                        <span className="block text-[10px] text-amber-800 font-bold mt-0.5">
+                          {formatEthiopianDate(etBirthday, lang)}
+                        </span>
+                      )}
+                      <span className="block text-[9px] font-bold text-neutral-400 font-mono mt-0.5">{client.phone_number}</span>
+                    </div>
+                    {client.retentionStatus === 'Frequent' && (
+                      <span className="text-[8px] bg-emerald-50 text-emerald-800 border-emerald-100 border rounded-full px-2 py-0.5 uppercase font-medium tracking-wider select-none pr-2 flex items-center gap-0.5">
+                        🎁 {lang === 'am' ? 'ነጻ!' : 'Free!'}
+                      </span>
+                    )}
                   </div>
-                  {client.retentionStatus === 'Frequent' && (
-                    <span className="text-[8px] bg-emerald-50 text-emerald-800 border-emerald-100 border rounded-full px-2 py-0.5 uppercase font-medium tracking-wider select-none pr-2 flex items-center gap-0.5">
-                      🎁 {lang === 'am' ? 'ነጻ!' : 'Free!'}
-                    </span>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
             <p className="text-[9.5px] text-[#A89F91] font-bold uppercase text-center tracking-wider">
               {lang === 'am' ? 'ልደታቸውን በመጠየቅ ደስታቸውን አብረዋቸው ያክብሩ!' : 'Celebrate on their visits!'}
@@ -1073,7 +1108,7 @@ export default function App() {
       )}
 
       {/* Premium Footer */}
-      <footer className="bg-white border-t border-[#E5D5C8] py-8 px-4 text-center mt-12">
+      <footer className="relative z-10 bg-white/70 backdrop-blur-md border-t border-[#E5D5C8]/80 py-8 px-4 text-center mt-12 shadow-inner">
         <p className="text-xs text-[#A89F91] font-medium tracking-wide">
           {dict.app_name} • Bespoke CRM Luxury Suite © 2026. All Client Formulation Diaries Protected.
         </p>

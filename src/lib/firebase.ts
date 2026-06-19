@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCJbJkcEbJOfiugVmFLnhZ6KrMRTHYryUk",
@@ -13,4 +13,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Use the designated firestore database id specifically configured for this applet
-export const db = getFirestore(app, "ai-studio-22086102-239d-4a2c-94c5-673769b61fd8");
+// Enabled experimentalForceLongPolling to handle proxy/restricted iframe preview connections cleanly
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true
+}, "ai-studio-22086102-239d-4a2c-94c5-673769b61fd8");

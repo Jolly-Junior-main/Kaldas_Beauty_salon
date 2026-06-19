@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Language, CustomerWithRetention, Visit, SalonService } from '../types';
 import { Dict } from '../translations';
-import { AreaChart, TrendingUp, Download, PieChart, Star, Calendar, RefreshCcw, Landmark, CreditCard, DollarSign } from 'lucide-react';
+import { AreaChart, TrendingUp, Download, PieChart, Star, Calendar, RefreshCcw, Landmark, CreditCard, DollarSign, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface AnalyticsPayload {
   revenue: {
@@ -57,8 +57,14 @@ export default function AdminAnalytics({
   });
 
   // Export states
-  const [selectedStatus, setSelectedStatus] = useState<'Green' | 'Yellow' | 'Red'>('Red');
+  const [selectedStatus, setSelectedStatus] = useState<'Green' | 'Yellow' | 'Red' | 'All'>('All');
   const [exportFormat, setExportFormat] = useState<'csv' | 'json'>('csv');
+
+  // Daily payment history selected date
+  const [selectedHistoryDate, setSelectedHistoryDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
 
   // Compute live responsive analytics client side
   const analytics = React.useMemo(() => {
@@ -172,6 +178,9 @@ export default function AdminAnalytics({
 
   // Compute live preview lists of segmented classifications
   const previewList = React.useMemo(() => {
+    if (selectedStatus === 'All') {
+      return customers;
+    }
     const statusParam = selectedStatus === 'Green' ? 'Frequent' : selectedStatus === 'Yellow' ? 'Occasional' : 'At-Risk';
     return customers.filter(c => c.retentionStatus === statusParam);
   }, [selectedStatus, customers]);
@@ -188,7 +197,7 @@ export default function AdminAnalytics({
 
   // Client-Side Export File downloading - No server dependencies required
   const handleDownload = () => {
-    const statusParam = selectedStatus === 'Green' ? 'Frequent' : selectedStatus === 'Yellow' ? 'Occasional' : 'At-Risk';
+    const statusParam = selectedStatus === 'All' ? 'All' : (selectedStatus === 'Green' ? 'Frequent' : selectedStatus === 'Yellow' ? 'Occasional' : 'At-Risk');
     if (exportFormat === 'json') {
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(previewList, null, 2));
       const downloadAnchor = document.createElement('a');
@@ -445,33 +454,161 @@ export default function AdminAnalytics({
         {/* Right Hand: Service Leaderboards & Targeted Segment Data Export */}
         <div className="space-y-6">
           
-          {/* Service Leaderboard */}
+          {/* Daily History of Payments with Calendar */}
           <div className="bg-white p-6 rounded-[24px] border border-neutral-200/50 shadow-ios space-y-4">
-            <div className="flex items-center gap-2">
-              <Star className="w-4 h-4 text-neutral-400" />
-              <h3 className="text-xs font-bold text-neutral-850 uppercase tracking-wider">{dict.performance_title}</h3>
-            </div>
-            <p className="text-[11px] text-neutral-400 italic">{dict.leaderboard_desc}</p>
-
-            <div className="divide-y divide-neutral-100">
-              {analytics?.leaderboard.length === 0 ? (
-                <p className="text-xs text-neutral-400 py-4 text-center">{dict.no_metrics}</p>
-              ) : (
-                analytics?.leaderboard.map((item, index) => (
-                  <div key={item.name} className="py-3 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-3">
-                      <span className="w-6 h-6 rounded-lg bg-neutral-50 font-bold text-neutral-400 text-center flex items-center justify-center font-mono border border-neutral-205">
-                        #{index + 1}
-                      </span>
-                      <div>
-                        <p className="font-bold text-neutral-800">{getPredefinedNameTranslated(item.name)}</p>
-                        <p className="text-[10px] text-neutral-400 font-medium">{lang === 'am' ? 'የድግግሞሽ ብዛት፦' : 'Frequency count:'} {item.count} {lang === 'am' ? 'ጊዜያት' : 'sessions'}</p>
-                      </div>
-                    </div>
-                    <span className="font-bold text-neutral-850 font-mono bg-neutral-50 px-2.5 py-1 rounded-lg border border-neutral-200/60">{item.revenue.toFixed(0)} ETB</span>
-                  </div>
-                ))
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-neutral-400" />
+                <h3 className="text-xs font-bold text-neutral-850 uppercase tracking-wider">
+                  {lang === 'am' ? 'የዕለት ክፍያ ታሪክ' : 'Daily Payment History'}
+                </h3>
+              </div>
+              {allVisits && (
+                <span className="text-[10px] font-mono font-bold bg-neutral-100 text-neutral-600 px-2.5 py-0.5 rounded-full border border-neutral-200/40">
+                  {allVisits.filter(v => v.visit_date && v.visit_date.split('T')[0] === selectedHistoryDate).reduce((acc, curr) => acc + (curr.price_charged || 0), 0).toLocaleString()} ETB
+                </span>
               )}
+            </div>
+
+            {/* Calendar Controls (Calendar on the Top of History) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between bg-neutral-50 p-2 rounded-2xl border border-neutral-200/40">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const prev = new Date(selectedHistoryDate);
+                    prev.setDate(prev.getDate() - 1);
+                    setSelectedHistoryDate(prev.toISOString().split('T')[0]);
+                  }}
+                  className="p-2 hover:bg-white rounded-xl transition-all cursor-pointer border border-transparent hover:border-neutral-200/40"
+                >
+                  <ChevronLeft className="w-4 h-4 text-neutral-600" />
+                </button>
+                
+                {/* Date Input Box */}
+                <div className="relative flex items-center gap-1 cursor-pointer">
+                  <input
+                    type="date"
+                    value={selectedHistoryDate}
+                    onChange={(e) => setSelectedHistoryDate(e.target.value)}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full z-10"
+                    id="picker-history-date"
+                  />
+                  <span className="text-xs font-bold text-neutral-850 underline decoration-dotted decoration-neutral-400 underline-offset-4 cursor-pointer">
+                    {new Date(selectedHistoryDate).toLocaleDateString(lang === 'am' ? 'am-ET' : 'en-US', {
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    })}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = new Date(selectedHistoryDate);
+                    next.setDate(next.getDate() + 1);
+                    setSelectedHistoryDate(next.toISOString().split('T')[0]);
+                  }}
+                  className="p-2 hover:bg-white rounded-xl transition-all cursor-pointer border border-transparent hover:border-neutral-200/40"
+                >
+                  <ChevronRight className="w-4 h-4 text-neutral-600" />
+                </button>
+              </div>
+
+              {/* Horizontal slider for the surrounding 5 days */}
+              <div className="grid grid-cols-5 gap-1 text-center">
+                {(() => {
+                  const base = new Date(selectedHistoryDate);
+                  const result = [];
+                  for (let i = -2; i <= 2; i++) {
+                    const temp = new Date(base);
+                    temp.setDate(base.getDate() + i);
+                    result.push(temp);
+                  }
+                  return result;
+                })().map((d) => {
+                  const slug = d.toISOString().split('T')[0];
+                  const isSelected = slug === selectedHistoryDate;
+                  const weekday = d.toLocaleDateString(lang === 'am' ? 'am-ET' : 'en-US', { weekday: 'narrow' });
+                  const dayNum = d.getDate();
+                  return (
+                    <button
+                      key={slug}
+                      type="button"
+                      onClick={() => setSelectedHistoryDate(slug)}
+                      className={`py-1.5 px-1 rounded-xl border flex flex-col items-center justify-center transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-neutral-900 border-neutral-900 text-white shadow-sm'
+                          : 'bg-white hover:bg-neutral-50 border-neutral-200/50 text-neutral-650'
+                      }`}
+                    >
+                      <span className="text-[9px] uppercase tracking-wider font-extrabold opacity-60">{weekday}</span>
+                      <span className="text-xs font-black font-mono">{dayNum}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* List of Payments */}
+            <div className="divide-y divide-neutral-100 max-h-72 overflow-y-auto pr-1" id="history-payment-list">
+              {(() => {
+                const visitsToDisplay = (allVisits || []).filter(v => v.visit_date && v.visit_date.split('T')[0] === selectedHistoryDate);
+                if (visitsToDisplay.length === 0) {
+                  return (
+                    <div className="text-center py-8">
+                      <p className="text-xs text-neutral-400 italic">
+                        {lang === 'am' ? 'በዚህ ቀን ምንም ክፍያዎች አልተመዘገቡም' : 'No payments registered on this date'}
+                      </p>
+                    </div>
+                  );
+                }
+
+                return visitsToDisplay.map((v) => {
+                  const client = (customers || []).find(c => c.id === v.customer_id);
+                  const clientName = client ? client.full_name : (lang === 'am' ? 'የውጭ ደንበኛ (Walk-in)' : 'Walk-in Guest');
+                  const timeStr = v.visit_date ? new Date(v.visit_date).toLocaleTimeString(lang === 'am' ? 'am-ET' : 'en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit'
+                  }) : '';
+
+                  const itemsArr = Array.isArray(v.items_used) ? v.items_used : [];
+                  
+                  return (
+                    <div key={v.id} className="py-3.5 flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <div>
+                          <p className="font-extrabold text-neutral-850">{clientName}</p>
+                          {timeStr && <p className="text-[9px] font-mono text-neutral-400 mt-0.5">{timeStr}</p>}
+                        </div>
+                        <div className="text-right">
+                          <span className="font-extrabold text-neutral-850 font-mono text-xs">{v.price_charged || 0} ETB</span>
+                          <span className="block text-[8px] font-bold text-neutral-400 uppercase tracking-wider mt-0.5">
+                            {v.payment_method || (lang === 'am' ? 'ያልታወቀ' : 'Unknown')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Service pills inside list */}
+                      {itemsArr.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {itemsArr.map((itemId) => {
+                            const def = (salonServices || []).find(s => s.id === itemId);
+                            const name = def ? def.name : itemId;
+                            return (
+                              <span key={itemId} className="text-[9px] bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded-md font-medium border border-neutral-200/20">
+                                {getPredefinedNameTranslated(name)}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
 
@@ -492,6 +629,7 @@ export default function AdminAnalytics({
                   className="w-full text-xs font-bold bg-white border border-neutral-250 outline-none p-2 rounded-xl text-neutral-800 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-all cursor-pointer"
                   id="export-status-select"
                 >
+                  <option value="All">{lang === 'am' ? 'ሁሉም ደንበኞች (All)' : 'All Customers (All)'}</option>
                   <option value="Green">{dict.frequent_segment_lbl}</option>
                   <option value="Yellow">{dict.stable_segment_lbl}</option>
                   <option value="Red">{dict.atrisk_segment_lbl}</option>
@@ -518,7 +656,7 @@ export default function AdminAnalytics({
               id="btn-commence-download"
             >
               <Download className="w-4 h-4 text-emerald-400" />
-              {dict.download_btn} ({selectedStatus === 'Green' ? dict.frequent_segment_lbl : selectedStatus === 'Yellow' ? dict.stable_segment_lbl : dict.atrisk_segment_lbl})
+              {dict.download_btn} ({selectedStatus === 'All' ? (lang === 'am' ? 'ሁሉም' : 'All') : (selectedStatus === 'Green' ? dict.frequent_segment_lbl : selectedStatus === 'Yellow' ? dict.stable_segment_lbl : dict.atrisk_segment_lbl)})
             </button>
 
             {/* Inline list preview  */}
