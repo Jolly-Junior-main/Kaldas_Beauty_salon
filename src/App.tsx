@@ -11,6 +11,7 @@ import CheckInModal from './components/CheckInModal';
 import ClientDashboard from './components/ClientDashboard';
 import AdminAnalytics from './components/AdminAnalytics';
 import KonjoLogo from './components/KonjoLogo';
+import BirthdayWishModal from './components/BirthdayWishModal';
 // @ts-expect-error - Vite handles jpg asset loading, TS bypass
 import salonInterior from './assets/images/luxury_beauty_salon_1781874528973.jpg';
 // @ts-expect-error - Vite handles jpg asset loading, TS bypass
@@ -108,6 +109,11 @@ export default function App() {
   const [editingServiceName, setEditingServiceName] = useState('');
   const [editingServiceCategory, setEditingServiceCategory] = useState<'Hair' | 'Nails' | 'Skin' | 'Massage' | 'Product'>('Hair');
   const [editingServicePrice, setEditingServicePrice] = useState('');
+
+  // Birthday wishes states
+  const [birthdayWishes, setBirthdayWishes] = useState<any[]>([]);
+  const [birthdayWishCustomer, setBirthdayWishCustomer] = useState<any | null>(null);
+  const [bdaySearchQuery, setBdaySearchQuery] = useState('');
 
   const dict = TRANSLATIONS[lang];
 
@@ -238,11 +244,23 @@ export default function App() {
       handleFirestoreError(err, OperationType.LIST, 'artists');
     });
 
+    // 5. Subscribe to Birthday wishes campaign log
+    const unsubWishes = onSnapshot(collection(db, 'birthday_wishes'), (snapshot) => {
+      const wishesData: any[] = [];
+      snapshot.forEach((doc) => {
+        wishesData.push({ id: doc.id, ...doc.data() });
+      });
+      setBirthdayWishes(wishesData.sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime()));
+    }, (err) => {
+      console.error("Firestore Birthday Wishes Subscribe Error:", err);
+    });
+
     return () => {
       unsubServices();
       unsubVisits();
       unsubCustomers();
       unsubArtists();
+      unsubWishes();
     };
   }, [isLoggedIn]);
 
@@ -1229,6 +1247,154 @@ export default function App() {
                 )}
               </div>
             </div>
+
+            {/* Birthday Campaign & SMS Center (Admin Only) */}
+            {userRole === 'admin' && (
+              <div className="space-y-4 pt-6 border-t border-neutral-100">
+                <div>
+                  <h3 className="text-xs font-extrabold uppercase tracking-widest text-[#A89F91] flex items-center gap-1.5">
+                    <span>🎂</span> {lang === 'am' ? 'የልደት በዓል ኤስኤምኤስ እና ዘመቻ ማዕከል' : 'Birthday Campaign & SMS Center'}
+                  </h3>
+                  <p className="text-[10px] text-neutral-400 mt-1 font-medium">
+                    {lang === 'am' ? 'ለደንበኞች የልደት ምኞት መልዕክቶችን እና የቅናሽ ኮዶችን ያስተላልፉ።' : 'Compose birthday wish texts, manage active customer promotions, and review logs.'}
+                  </p>
+                </div>
+
+                {/* Send Wish to Any Client Search Section */}
+                <div className="bg-neutral-50/50 rounded-2xl p-4 border border-neutral-200/50 space-y-3 animate-fade-in">
+                  <h4 className="text-xs font-bold text-neutral-850">
+                    {lang === 'am' ? 'ለማንኛውም ደንበኛ የልደት ምኞት ይላኩ' : 'Send Birthday Wish to Any Customer'}
+                  </h4>
+                  
+                  {/* Small customer picker */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="flex-1 relative">
+                      <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-neutral-400" />
+                      <input
+                        type="text"
+                        value={bdaySearchQuery}
+                        onChange={(e) => setBdaySearchQuery(e.target.value)}
+                        placeholder={lang === 'am' ? 'ደንበኛ በስም ወይም ስልክ ፈልግ...' : 'Search customer by name or phone...'}
+                        className="w-full pl-9 pr-4 py-2 text-xs bg-white border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 font-medium text-neutral-800"
+                        id="birthday-campaign-client-search"
+                      />
+                    </div>
+                  </div>
+
+                  {/* List of matching customers who have a birthday */}
+                  <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 bg-white p-2.5 rounded-xl border border-neutral-200/40">
+                    {(() => {
+                      const matched = customers.filter(c => {
+                        const nameMatch = c.full_name.toLowerCase().includes(bdaySearchQuery.toLowerCase());
+                        const phoneMatch = c.phone_number.includes(bdaySearchQuery);
+                        return (nameMatch || phoneMatch) && c.birth_date;
+                      });
+
+                      if (matched.length === 0) {
+                        return (
+                          <p className="text-[11px] text-neutral-400 text-center py-4">
+                            {lang === 'am' ? 'ምንም ደንበኛ (የልደት ቀን ያለው) አልተገኘም።' : 'No customers with birthday found.'}
+                          </p>
+                        );
+                      }
+
+                      return matched.slice(0, 10).map(c => {
+                        const etBirthday = c.birth_date ? convertToEthiopian(c.birth_date) : null;
+                        return (
+                          <div key={c.id} className="flex items-center justify-between p-2 hover:bg-neutral-50 rounded-lg text-xs">
+                            <div>
+                              <span className="font-bold text-neutral-850">{c.full_name}</span>
+                              <span className="text-[10px] text-neutral-400 font-mono ml-2">({c.phone_number})</span>
+                              {c.birth_date && (
+                                <span className="text-[10px] text-amber-700 font-bold ml-2 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100/60 inline-flex items-center gap-0.5">
+                                  🎂 {c.birth_date} {etBirthday ? `(${formatEthiopianDate(etBirthday, lang)})` : ''}
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setBirthdayWishCustomer(c)}
+                              className="px-2.5 py-1 bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ios-active-scale"
+                            >
+                              <span>✉️</span>
+                              <span>{lang === 'am' ? 'ምኞት ላክ' : 'Compose Wish'}</span>
+                            </button>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+
+                {/* Sent Wishes Archive / History Log */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-neutral-850 flex items-center gap-1">
+                    <span>📜</span> {lang === 'am' ? 'የተላኩ መልዕክቶች ታሪክ' : 'Sent Wishes History Log'} ({birthdayWishes.length})
+                  </h4>
+
+                  <div className="border border-neutral-200 rounded-2xl overflow-hidden bg-white">
+                    {birthdayWishes.length === 0 ? (
+                      <p className="text-xs text-neutral-400 text-center py-6">
+                        {lang === 'am' ? 'እስካሁን ምንም የተላከ የልደት ምኞት የለም።' : 'No birthday wishes sent or logged yet.'}
+                      </p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-neutral-50/75 border-b border-neutral-200 text-neutral-400 text-[10px] font-bold uppercase tracking-wider">
+                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'ደንበኛ' : 'Recipient'}</th>
+                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'ስልክ' : 'Phone'}</th>
+                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'ጉርሻ / ስጦታ' : 'Campaign Offer'}</th>
+                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'መልዕክት' : 'Message Body'}</th>
+                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'ቀን' : 'Sent Date'}</th>
+                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'በማን' : 'Sender'}</th>
+                              <th className="py-2.5 px-4 font-extrabold text-center">{lang === 'am' ? 'ሁኔታ' : 'Status'}</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-neutral-100">
+                            {birthdayWishes.slice(0, 10).map((w) => (
+                              <tr key={w.id} className="hover:bg-neutral-50/40 text-[11px] font-medium text-neutral-750">
+                                <td className="py-2.5 px-4 font-bold text-neutral-850">{w.customer_name}</td>
+                                <td className="py-2.5 px-4 font-mono text-[10px] text-neutral-500">{w.customer_phone}</td>
+                                <td className="py-2.5 px-4">
+                                  {w.offer_type === 'none' ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 text-[9px] font-black border border-neutral-200/50 uppercase">
+                                      {lang === 'am' ? 'ምኞት ብቻ' : 'Wish Only'}
+                                    </span>
+                                  ) : w.offer_type === '50_percent' ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[9px] font-black border border-amber-200/30 uppercase">
+                                      {lang === 'am' ? 'የ 50% ቅናሽ' : '50% Off'}
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[9px] font-black border border-emerald-200/30 uppercase">
+                                      🎉 {lang === 'am' ? 'ነጻ አገልግሎት' : 'Free Service'}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-4 max-w-[180px] truncate" title={w.message_text}>
+                                  {w.message_text}
+                                </td>
+                                <td className="py-2.5 px-4 font-mono text-[10px] text-neutral-400">
+                                  {new Date(w.sent_at).toLocaleDateString()}
+                                </td>
+                                <td className="py-2.5 px-4 text-neutral-600 font-bold">{w.sent_by}</td>
+                                <td className="py-2.5 px-4 text-center">
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase bg-neutral-100 text-neutral-600 px-2.5 py-0.5 rounded-full border border-neutral-200/40" title="Draft simulation logged successfully inside Firestore">
+                                    🟢 {lang === 'am' ? 'ተመዝግቧል' : 'Logged'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            )}
+
           </div>
         )}
 
@@ -1323,11 +1489,22 @@ export default function App() {
                       )}
                       <span className="block text-[9px] font-bold text-neutral-400 font-mono mt-0.5">{client.phone_number}</span>
                     </div>
-                    {client.retentionStatus === 'Frequent' && (
-                      <span className="text-[8px] bg-emerald-50 text-emerald-800 border-emerald-100 border rounded-full px-2 py-0.5 uppercase font-medium tracking-wider select-none pr-2 flex items-center gap-0.5">
-                        🎁 {lang === 'am' ? 'ነጻ!' : 'Free!'}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {client.retentionStatus === 'Frequent' && (
+                        <span className="text-[8px] bg-emerald-50 text-emerald-800 border-emerald-100 border rounded-full px-2 py-0.5 uppercase font-medium tracking-wider select-none flex items-center gap-0.5">
+                          🎁 {lang === 'am' ? 'ነጻ!' : 'Free!'}
+                        </span>
+                      )}
+                      {userRole === 'admin' && (
+                        <button
+                          onClick={() => setBirthdayWishCustomer(client)}
+                          className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-0.5 shadow-xs ios-active-scale transition-all"
+                          title={lang === 'am' ? 'መልዕክት ላክ' : 'Send SMS'}
+                        >
+                          ✉️ {lang === 'am' ? 'ምኞት' : 'Wish'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -1345,6 +1522,14 @@ export default function App() {
           {dict.app_name} • Bespoke CRM Luxury Suite © 2026. All Client Formulation Diaries Protected.
         </p>
       </footer>
+
+      {birthdayWishCustomer && (
+        <BirthdayWishModal
+          customer={birthdayWishCustomer}
+          lang={lang}
+          onClose={() => setBirthdayWishCustomer(null)}
+        />
+      )}
 
     </div>
   );

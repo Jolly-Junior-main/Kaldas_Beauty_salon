@@ -9,6 +9,7 @@ import { Dict, translateName, translateServiceName } from '../translations';
 import { Phone, Calendar, ClipboardList, PenTool, Check, Notebook, Clock, FileSpreadsheet, Plus, Edit2, Save, X as CloseIcon } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../lib/firebase';
+import BirthdayWishModal from './BirthdayWishModal';
 
 interface ClientDashboardProps {
   customer: CustomerWithRetention | null;
@@ -25,6 +26,7 @@ export default function ClientDashboard({ customer, onLogVisitForCustomer, onRef
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [editedNotes, setEditedNotes] = useState('');
   const [notesFeedback, setNotesFeedback] = useState(false);
+  const [showBirthdayModal, setShowBirthdayModal] = useState(false);
 
   // Profile fields editing states
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -260,9 +262,19 @@ export default function ClientDashboard({ customer, onLogVisitForCustomer, onRef
                   className="w-full text-xs font-bold text-neutral-800 bg-neutral-50 px-2 py-1 rounded-lg outline-none border border-neutral-200/60 focus:border-neutral-900 mt-1"
                 />
               ) : (
-                <span className="text-xs font-bold text-neutral-800 block">
-                  {customer.birth_date ? new Date(customer.birth_date).toLocaleDateString(lang === 'am' ? 'am-ET' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (lang === 'am' ? 'አልተሰጠም' : 'Not provided')}
-                </span>
+                <>
+                  <span className="text-xs font-bold text-neutral-800 block">
+                    {customer.birth_date ? new Date(customer.birth_date).toLocaleDateString(lang === 'am' ? 'am-ET' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (lang === 'am' ? 'አልተሰጠም' : 'Not provided')}
+                  </span>
+                  {customer.birth_date && localStorage.getItem('kaldas_user_role') === 'admin' && (
+                    <button
+                      onClick={() => setShowBirthdayModal(true)}
+                      className="mt-1.5 text-[9px] font-extrabold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2.5 py-0.5 rounded border border-amber-200/50 flex items-center gap-0.5 transition-all ios-active-scale uppercase tracking-wide cursor-pointer"
+                    >
+                      ✉️ {lang === 'am' ? 'የልደት ምኞት ላክ' : 'Send Wish SMS'}
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -460,6 +472,14 @@ export default function ClientDashboard({ customer, onLogVisitForCustomer, onRef
         </div>
 
       </div>
+      
+      {showBirthdayModal && customer && (
+        <BirthdayWishModal
+          customer={customer}
+          lang={lang}
+          onClose={() => setShowBirthdayModal(false)}
+        />
+      )}
     </div>
   );
 }

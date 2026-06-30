@@ -25,5 +25,10 @@ service cloud.firestore {
     match /visits/{visitId} {
       allow read, write: if true;
     }
+
+    // Birthday wishes and campaign logs
+    match /birthday_wishes/{wishId} {
+      allow read, write: if true;
+    }
   }
 }

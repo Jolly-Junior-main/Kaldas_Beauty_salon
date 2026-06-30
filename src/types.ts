@@ -67,6 +67,18 @@ export interface CRMData {
   staff?: StaffMember[];
 }
 
+export interface BirthdayWish {
+  id: string;
+  customer_id: string;
+  customer_name: string;
+  customer_phone: string;
+  message_text: string;
+  offer_type: 'none' | '50_percent' | 'free';
+  sent_at: string;
+  sent_by: string;
+  status: 'pending_api' | 'sent_mock';
+}
+
 export const PREDEFINED_SERVICES: SalonService[] = [
   { id: 'srv_1', name: 'Balayage Premium Hair Coloring', category: 'Hair', defaultPrice: 120.00 },
   { id: 'srv_2', name: 'Signature Hydrafacial Treatment', category: 'Skin', defaultPrice: 85.00 },
