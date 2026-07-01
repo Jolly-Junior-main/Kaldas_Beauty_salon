@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Customer, Language } from '../types';
 import { X, Send, Gift, Calendar, CheckCircle, Sparkles } from 'lucide-react';
-import { collection, doc, setDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 interface BirthdayWishModalProps {
@@ -21,6 +21,28 @@ export default function BirthdayWishModal({ customer, lang, onClose, onSent }: B
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [smsConfigEnabled, setSmsConfigEnabled] = useState(true);
+
+  // Fetch SMS configuration status
+  useEffect(() => {
+    const fetchSmsConfig = async () => {
+      try {
+        const snap = await getDoc(doc(db, 'settings', 'sms'));
+        if (snap.exists()) {
+          setSmsConfigEnabled(snap.data().enabled !== false);
+        }
+      } catch (err) {
+        console.warn("Firestore settings lookup failed in BirthdayWishModal, using backend API fallback:", err);
+        try {
+          const apiRes = await fetch('/api/settings/sms-status').then(r => r.json());
+          setSmsConfigEnabled(apiRes.enabled !== false);
+        } catch (fallbackErr) {
+          console.error("Backend SMS status fallback failed in BirthdayWishModal:", fallbackErr);
+        }
+      }
+    };
+    fetchSmsConfig();
+  }, []);
 
   // Default templates based on language and offer type
   const getTemplate = (type: 'none' | '50_percent' | 'free', name: string) => {
@@ -221,6 +243,17 @@ export default function BirthdayWishModal({ customer, lang, onClose, onSent }: B
               />
             </div>
 
+            {!smsConfigEnabled && (
+              <div className="p-3 bg-amber-50 border border-amber-200/50 rounded-2xl text-[11px] text-amber-800 font-bold flex items-center gap-2 animate-fade-in">
+                <span>⚠️</span>
+                <span>
+                  {lang === 'am' 
+                    ? 'በሳሎን ቅንጅቶች ውስጥ የኤስኤምኤስ መላኪያ ጠፍቷል። እባክዎ አስቀድመው ቅንጅቶች ውስጥ ያብሩት።' 
+                    : 'SMS sending is disabled in Salon Settings. Please enable it first to send wishes.'}
+                </span>
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="pt-2 border-t border-neutral-100 flex items-center justify-end gap-2">
               <button
@@ -232,8 +265,8 @@ export default function BirthdayWishModal({ customer, lang, onClose, onSent }: B
               </button>
               <button
                 type="submit"
-                disabled={isSending || !message.trim()}
-                className="px-5 py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-300 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs ios-active-scale"
+                disabled={isSending || !message.trim() || !smsConfigEnabled}
+                className="px-5 py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-200 disabled:text-neutral-400 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs ios-active-scale"
               >
                 {isSending ? (
                   <span>{lang === 'am' ? 'በመላክ ላይ...' : 'Sending...'}</span>

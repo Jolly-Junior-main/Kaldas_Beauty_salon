@@ -30,5 +30,15 @@ service cloud.firestore {
     match /birthday_wishes/{wishId} {
       allow read, write: if true;
     }
+
+    // Salon settings (like turning on/off SMS sending)
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // SMS dispatch logs
+    match /sms_logs/{logId} {
+      allow read, write: if true;
+    }
   }
 }

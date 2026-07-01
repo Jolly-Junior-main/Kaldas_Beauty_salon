@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { CustomerWithRetention, Language } from '../types';
 import { Dict } from '../translations';
 import { PlusCircle, AlertCircle, Sparkles, X } from 'lucide-react';
-import { collection, doc, setDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../lib/firebase';
 import { classifyCustomer } from '../lib/retention';
 import { convertToGregorian, ETHIOPIAN_MONTHS_EN, ETHIOPIAN_MONTHS_AM } from '../lib/ethiopianCalendar';
@@ -103,21 +103,40 @@ export default function RegistrationForm({ existingCustomers, onRegisterSuccess,
 
       // Send Welcoming SMS via backend GeezSMS proxy
       try {
-        const welcomeMsg = lang === 'am'
-          ? `ውድ ${fullName.trim()}፣ ኮንጆ ሳሎን (Konjo Salon) ስለተመዘገቡ እናመሰግናለን! ቴክኖሎጂውን በመጠቀም የተሻለ አገልግሎት ለማቅረብ እንተጋለን።`
-          : `Dear ${fullName.trim()}, thank you for registering with Konjo Salon! We are thrilled to have you as our valued client.`;
+        // Check if SMS is enabled in Firestore settings with fallback to backend API
+        let isSmsEnabled = true;
+        try {
+          const smsConfigSnap = await getDoc(doc(db, 'settings', 'sms'));
+          isSmsEnabled = smsConfigSnap.exists() ? smsConfigSnap.data().enabled !== false : true;
+        } catch (err) {
+          console.warn("Firestore settings lookup failed in RegistrationForm, using backend API fallback:", err);
+          try {
+            const apiRes = await fetch('/api/settings/sms-status').then(r => r.json());
+            isSmsEnabled = apiRes.enabled !== false;
+          } catch (fallbackErr) {
+            console.error("Backend SMS status fallback failed:", fallbackErr);
+          }
+        }
 
-        await fetch('/api/sms/send', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            phone: phoneNumber.trim(),
-            message: welcomeMsg
-          })
-        });
-        console.log('[GeezSMS] Welcome SMS triggered successfully');
+        if (!isSmsEnabled) {
+          console.log('[GeezSMS] SMS sending is disabled in settings. Skipping welcome SMS.');
+        } else {
+          const welcomeMsg = lang === 'am'
+            ? `ውድ ${fullName.trim()}፣ ካልዳስ ውበት ሳሎን (Kaldas Beauty Salon) ስለተመዘገቡ እናመሰግናለን! ቴክኖሎጂውን በመጠቀም የተሻለ አገልግሎት ለማቅረብ እንተጋለን።`
+            : `Dear ${fullName.trim()}, thank you for registering with Kaldas Beauty Salon! We are thrilled to have you as our valued client.`;
+
+          await fetch('/api/sms/send', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              phone: phoneNumber.trim(),
+              message: welcomeMsg
+            })
+          });
+          console.log('[GeezSMS] Welcome SMS triggered successfully');
+        }
       } catch (smsErr) {
         console.error('[GeezSMS] Bypassed or failed welcome SMS dispatch:', smsErr);
       }

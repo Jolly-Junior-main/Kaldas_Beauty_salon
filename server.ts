@@ -6,6 +6,7 @@
 import express from 'express';
 import path from 'path';
 import crypto from 'crypto';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { db } from './src/db/index.ts';
 import { customers, visits, staff, services } from './src/db/schema.ts';
@@ -64,23 +65,61 @@ function classifyCustomer(customer: any, usrVisits: any[], curTime = new Date())
   };
 }
 
+// --- SMS LOGS AND CACHE ---
+let smsLogs: any[] = [];
+const LOG_FILE = path.join(process.cwd(), 'sms_logs_cache.json');
+
+try {
+  if (fs.existsSync(LOG_FILE)) {
+    smsLogs = JSON.parse(fs.readFileSync(LOG_FILE, 'utf8'));
+  }
+} catch (e) {
+  console.error('[SMS Logs] Failed to load SMS logs from cache file:', e);
+}
+
+function saveSmsLog(phone: string, message: string, status: 'Sent' | 'Failed', errorMessage?: string) {
+  const logEntry = {
+    id: `log_${crypto.randomUUID()}`,
+    phone,
+    message,
+    status,
+    error_message: errorMessage || null,
+    sent_at: new Date().toISOString()
+  };
+  smsLogs.unshift(logEntry);
+  if (smsLogs.length > 200) {
+    smsLogs = smsLogs.slice(0, 200);
+  }
+  try {
+    fs.writeFileSync(LOG_FILE, JSON.stringify(smsLogs, null, 2));
+  } catch (e) {
+    console.error('[SMS Logs] Failed to write SMS logs cache file:', e);
+  }
+  return logEntry;
+}
+
 // --- GEEZ SMS INTEGRATION ---
 async function sendGeezSMS(phoneNumber: string, messageText: string) {
   // Clean token of potential quotes or whitespace
-  const rawToken = process.env.GEEZ_SMS_TOKEN || 'm3tCICfmNSGx1OweNguDXAhwChkF6m4Q';
-  const token = rawToken.trim().replace(/^["']|["']$/g, '');
+  const rawToken = 'yRedFrjJiBa6JqKxjKlZHXOA3Sc7QYsS';
+  const token = rawToken.trim().replace(/^["']|["']$/g, '').trim();
   
-  // Normalize Ethiopian phone number format
+  // Normalize Ethiopian phone number format to standard 12-digit international format (starting with 251)
   let cleaned = phoneNumber.trim().replace(/[\s\-\(\)\+]/g, '');
+  let formattedPhone = '';
   if (cleaned.startsWith('2510')) {
-    cleaned = '251' + cleaned.substring(4);
+    formattedPhone = '251' + cleaned.substring(4);
+  } else if (cleaned.startsWith('251')) {
+    formattedPhone = cleaned;
   } else if (cleaned.startsWith('0')) {
-    cleaned = '251' + cleaned.substring(1);
+    formattedPhone = '251' + cleaned.substring(1);
   } else if ((cleaned.startsWith('9') || cleaned.startsWith('7')) && cleaned.length === 9) {
-    cleaned = '251' + cleaned;
+    formattedPhone = '251' + cleaned;
+  } else {
+    formattedPhone = cleaned;
   }
   
-  console.log(`[GeezSMS] Attempting to send SMS to: ${cleaned} using token prefix: ${token.substring(0, 4)}...`);
+  console.log(`[GeezSMS] Preparing SMS. Original: ${phoneNumber}, Normalized International: ${formattedPhone}`);
   try {
     const url = 'https://api.geezsms.com/api/v1/sms/send';
     const response = await fetch(url, {
@@ -90,24 +129,46 @@ async function sendGeezSMS(phoneNumber: string, messageText: string) {
       },
       body: JSON.stringify({
         token: token,
-        phone: cleaned,
+        phone: formattedPhone,
         msg: messageText
       })
     });
     
-    let data;
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      data = await response.json();
-    } else {
-      const text = await response.text();
-      data = { error: true, msg: text || `HTTP Error ${response.status}` };
+    let data: any = {};
+    const text = (await response.text()).trim();
+    console.log(`[GeezSMS] Raw response text for ${formattedPhone}:`, text);
+    
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed.error === true || parsed.error === 'true') {
+        data = { error: true, msg: parsed.msg || parsed.message || 'GeezSMS API error' };
+      } else if (parsed.error === false || parsed.error === 'false') {
+        data = { error: false, msg: parsed.msg || parsed.message || 'Success' };
+      } else {
+        data = { error: !response.ok, ...parsed };
+      }
+    } catch (jsonErr) {
+      const normalizedText = text.toLowerCase();
+      if (normalizedText.includes('"error":false') || normalizedText.includes('"error": false') || normalizedText.includes('error:false')) {
+        data = { error: false, msg: text };
+      } else {
+        data = { error: !response.ok, msg: text || `HTTP Error ${response.status}` };
+      }
     }
     
-    console.log(`[GeezSMS] API Response for ${cleaned}:`, data);
+    console.log(`[GeezSMS] Parsed Response for ${formattedPhone}:`, data);
+    
+    // Log the message status in local cache
+    if (data.error) {
+      saveSmsLog(formattedPhone, messageText, 'Failed', data.msg);
+    } else {
+      saveSmsLog(formattedPhone, messageText, 'Sent');
+    }
+    
     return data;
   } catch (error) {
-    console.error(`[GeezSMS] API Network Error sending to ${cleaned}:`, error);
+    console.error(`[GeezSMS] API Network Error sending to ${formattedPhone}:`, error);
+    saveSmsLog(formattedPhone, messageText, 'Failed', String(error));
     return { error: true, msg: String(error) };
   }
 }
@@ -444,7 +505,7 @@ app.post('/api/customers', async (req, res) => {
     await db.insert(customers).values(newCustomer);
 
     // Send Welcoming SMS using GeezSMS
-    const welcomeMsg = `ውድ ${full_name.trim()}፣ ኮንጆ ሳሎን (Konjo Salon) ስለተመዘገቡ እናመሰግናለን! Welcome to Konjo Salon CRM. We are thrilled to have you!`;
+    const welcomeMsg = `ውድ ${full_name.trim()}፣ ካልዳስ ውበት ሳሎን (Kaldas Beauty Salon) ስለተመዘገቡ እናመሰግናለን! Welcome to Kaldas Beauty Salon. We are thrilled to have you!`;
     sendGeezSMS(trimmedPhone, welcomeMsg).catch(err => {
       console.error('[GeezSMS] Welcome message sending failed:', err);
     });
@@ -500,7 +561,7 @@ app.post('/api/visits', async (req, res) => {
     }
 
     // Send Thank You SMS with amount and services used
-    const thanksMsg = `ውድ ${clients[0].full_name}፣ ስለመጡልን እናመሰግናለን! Thank you for visiting Konjo Salon. You paid ${Number(price_charged)} Birr via ${payment_method} for services: ${serviceNamesText}. We hope to see you again soon!`;
+    const thanksMsg = `ውድ ${clients[0].full_name}፣ ስለመጡልን እናመሰግናለን! Thank you for visiting Kaldas Beauty Salon. You paid ${Number(price_charged)} Birr via ${payment_method} for services: ${serviceNamesText}. We hope to see you again soon!`;
     sendGeezSMS(clients[0].phone_number, thanksMsg).catch(err => {
       console.error('[GeezSMS] Visit payment thank you message sending failed:', err);
     });
@@ -700,6 +761,22 @@ app.get('/api/export', async (req, res) => {
 });
 
 // --- SMS DISPATCH GATEWAY ---
+let isSmsGloballyEnabled = true;
+
+app.get('/api/settings/sms-status', (req, res) => {
+  res.json({ enabled: isSmsGloballyEnabled });
+});
+
+app.post('/api/settings/sms-status', (req, res) => {
+  const { enabled } = req.body;
+  if (typeof enabled === 'boolean') {
+    isSmsGloballyEnabled = enabled;
+    res.json({ success: true, enabled: isSmsGloballyEnabled });
+  } else {
+    res.status(400).json({ error: 'Invalid status parameter' });
+  }
+});
+
 app.post('/api/sms/send', async (req, res) => {
   try {
     const { phone, message } = req.body;
@@ -707,6 +784,13 @@ app.post('/api/sms/send', async (req, res) => {
       res.status(400).json({ error: 'Phone and message are required' });
       return;
     }
+    
+    if (!isSmsGloballyEnabled) {
+      console.log(`[GeezSMS] SMS dispatch bypassed for ${phone} because SMS sending is disabled in settings.`);
+      res.json({ success: true, bypassed: true, message: 'SMS sending is globally disabled' });
+      return;
+    }
+
     const result = await sendGeezSMS(phone, message);
     if (result && (result.error === true || result.error === 'true')) {
       res.status(400).json({ error: result.msg || 'GeezSMS API rejected the request' });
@@ -717,6 +801,20 @@ app.post('/api/sms/send', async (req, res) => {
     console.error('Error in POST /api/sms/send:', err);
     res.status(500).json({ error: 'Failed to dispatch SMS' });
   }
+});
+
+app.get('/api/sms/logs', (req, res) => {
+  res.json(smsLogs);
+});
+
+app.post('/api/sms/logs/clear', (req, res) => {
+  smsLogs = [];
+  try {
+    fs.writeFileSync(LOG_FILE, JSON.stringify(smsLogs, null, 2));
+  } catch (e) {
+    console.error('[SMS Logs] Failed to clear SMS logs cache file:', e);
+  }
+  res.json({ success: true });
 });
 
 // --- SERVICES & TREATMENTS CRUD API ENDPOINTS ---

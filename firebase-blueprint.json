@@ -65,6 +65,47 @@
         "created_at": { "type": "string" }
       },
       "required": ["id", "name", "skills", "specialty", "created_at"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "Salon settings and configurations",
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      },
+      "required": ["enabled"]
+    },
+    "BirthdayWish": {
+      "title": "BirthdayWish",
+      "description": "Birthday wishes campaign log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customer_id": { "type": "string" },
+        "customer_name": { "type": "string" },
+        "phone": { "type": "string" },
+        "message": { "type": "string" },
+        "sent_at": { "type": "string" },
+        "discount_code": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "customer_id", "customer_name", "phone", "message", "sent_at"]
+    },
+    "SmsLog": {
+      "title": "SmsLog",
+      "description": "Log of automated or manual SMS messages dispatched to customers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "phone": { "type": "string" },
+        "recipient_name": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string" },
+        "status": { "type": "string" },
+        "error_message": { "type": "string" },
+        "sent_at": { "type": "string" }
+      },
+      "required": ["id", "phone", "message", "status", "sent_at"]
     }
   },
   "firestore": {
@@ -87,6 +128,18 @@
     "artists": {
       "schema": "TreatmentArtist",
       "description": "List of salon treatment artists"
+    },
+    "birthday_wishes": {
+      "schema": "BirthdayWish",
+      "description": "Log of sent birthday wishes and offers"
+    },
+    "settings": {
+      "schema": "Setting",
+      "description": "Global salon settings configurations"
+    },
+    "sms_logs": {
+      "schema": "SmsLog",
+      "description": "Log of sent automated or manual SMS notifications and statuses"
     }
   }
 }

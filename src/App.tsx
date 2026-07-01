@@ -12,6 +12,7 @@ import ClientDashboard from './components/ClientDashboard';
 import AdminAnalytics from './components/AdminAnalytics';
 import KonjoLogo from './components/KonjoLogo';
 import BirthdayWishModal from './components/BirthdayWishModal';
+import CustomBroadcaster from './components/CustomBroadcaster';
 // @ts-expect-error - Vite handles jpg asset loading, TS bypass
 import salonInterior from './assets/images/luxury_beauty_salon_1781874528973.jpg';
 // @ts-expect-error - Vite handles jpg asset loading, TS bypass
@@ -27,6 +28,7 @@ import {
   Sparkles, 
   HelpCircle, 
   Smartphone, 
+  MessageSquare,
   Filter, 
   Award, 
   Plus, 
@@ -69,10 +71,14 @@ export default function App() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [segmentFilter, setSegmentFilter] = useState<'All' | 'Frequent' | 'Occasional' | 'At-Risk'>('All');
-  const [activeTab, setActiveTab] = useState<'clients' | 'analytics' | 'settings'>('clients');
+  const [activeTab, setActiveTab] = useState<'clients' | 'analytics' | 'settings' | 'sms-logs'>('clients');
+  const [smsLogs, setSmsLogs] = useState<any[]>([]);
   const [showCheckInDrawer, setShowCheckInDrawer] = useState(false);
   const [preSelectedForVisit, setPreSelectedForVisit] = useState<CustomerWithRetention | null>(null);
   const [uiFeedback, setUiFeedback] = useState<string | null>(null);
+  
+  const [smsEnabled, setSmsEnabled] = useState(true);
+  const [isSmsSaving, setIsSmsSaving] = useState(false);
   
   const [showRegPanel, setShowRegPanel] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -259,12 +265,98 @@ export default function App() {
       console.error("Firestore Birthday Wishes Subscribe Error:", err);
     });
 
+    // 5b. Subscribe to SMS logs collection (real-time with REST fallback)
+    const unsubSmsLogs = onSnapshot(collection(db, 'sms_logs'), (snapshot) => {
+      const logsData: any[] = [];
+      snapshot.forEach((doc) => {
+        logsData.push({ id: doc.id, ...doc.data() });
+      });
+      setSmsLogs(logsData.sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime()));
+    }, (err) => {
+      console.warn("Firestore SMS Logs subscription bypassed:", err);
+    });
+
+    // Fetch initial SMS logs from cache endpoint
+    fetch('/api/sms/logs')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setSmsLogs(prev => {
+            // merge logs avoiding duplicates, sorted by sent_at
+            const combined = [...data];
+            prev.forEach(p => {
+              if (!combined.some(c => c.id === p.id)) {
+                combined.push(p);
+              }
+            });
+            return combined.sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime());
+          });
+        }
+      })
+      .catch(err => console.debug("Initial cached SMS logs load bypassed:", err));
+
+    // Fetch initial SMS status from REST API instantly as a reliable failsafe
+    fetch('/api/settings/sms-status')
+      .then(res => res.json())
+      .then(data => {
+        if (data && typeof data.enabled === 'boolean') {
+          setSmsEnabled(data.enabled);
+        }
+      })
+      .catch(err => console.debug("Initial REST SMS status load bypassed:", err));
+
+    // 6. Subscribe to SMS config setting (real-time toggle with REST API fallback)
+    let isSubscribed = true;
+    let fallbackInterval: NodeJS.Timeout | null = null;
+
+    const unsubSmsConfig = onSnapshot(doc(db, 'settings', 'sms'), (docSnap) => {
+      if (!isSubscribed) return;
+      if (docSnap.exists()) {
+        const val = docSnap.data().enabled !== false;
+        setSmsEnabled(val);
+        // Keep backend server in sync
+        fetch('/api/settings/sms-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: val })
+        }).catch(err => console.debug("Error syncing SMS status to server:", err));
+      } else {
+        // Initialize in Firestore if it doesn't exist yet
+        setDoc(doc(db, 'settings', 'sms'), { enabled: true }).catch(err => {
+          console.debug("Bypassed settings/sms Firestore auto-creation:", err);
+        });
+        setSmsEnabled(true);
+      }
+    }, (err) => {
+      console.warn("Firestore SMS Config subscription bypassed, falling back to REST polling:", err.message);
+      
+      // If Firestore subscription is blocked or propagating, fall back to REST API polling
+      if (isSubscribed && !fallbackInterval) {
+        fallbackInterval = setInterval(() => {
+          fetch('/api/settings/sms-status')
+            .then(res => res.json())
+            .then(data => {
+              if (data && typeof data.enabled === 'boolean' && isSubscribed) {
+                setSmsEnabled(data.enabled);
+              }
+            })
+            .catch(e => console.debug("REST polling SMS status failed:", e));
+        }, 5000);
+      }
+    });
+
     return () => {
+      isSubscribed = false;
       unsubServices();
       unsubVisits();
       unsubCustomers();
       unsubArtists();
       unsubWishes();
+      unsubSmsLogs();
+      unsubSmsConfig();
+      if (fallbackInterval) {
+        clearInterval(fallbackInterval);
+      }
     };
   }, [isLoggedIn]);
 
@@ -300,6 +392,47 @@ export default function App() {
       await deleteDoc(doc(db, 'staff', id));
     } catch (e) {
       console.error('Failed to remove staff from Firestore:', e);
+    }
+  };
+
+  const handleDeleteCustomer = async (id: string) => {
+    if (userRole !== 'admin') {
+      alert(lang === 'am' ? 'የአስተዳዳሪ ፈቃድ ያስፈልጋል!' : 'Admin permission is required!');
+      return;
+    }
+    const confirmMsg = lang === 'am' 
+      ? 'እርግጠኛ ነዎት ይህንን ደንበኛ እና ሁሉንም የጉብኝት ታሪክ በቋሚነት መሰረዝ ይፈልጋሉ?' 
+      : 'Are you sure you want to delete this customer and all their visit history permanently?';
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+    try {
+      const customerVisits = allVisits.filter(v => v.customer_id === id);
+      for (const visit of customerVisits) {
+        await deleteDoc(doc(db, 'visits', visit.id));
+      }
+      await deleteDoc(doc(db, 'customers', id));
+      if (selectedCustomerId === id) {
+        setSelectedCustomerId('');
+      }
+    } catch (e) {
+      console.error('Failed to delete customer:', e);
+    }
+  };
+
+  const handleToggleSms = async (newValue: boolean) => {
+    if (userRole !== 'admin') {
+      alert(lang === 'am' ? 'የኤስኤምኤስ ቅንጅት ለመቀየር የአስተዳዳሪ ፈቃድ ያስፈልጋል!' : 'Admin privilege is required to toggle SMS settings!');
+      return;
+    }
+    setIsSmsSaving(true);
+    try {
+      await setDoc(doc(db, 'settings', 'sms'), { enabled: newValue });
+    } catch (err) {
+      console.error("Failed to update SMS setting:", err);
+      alert(lang === 'am' ? 'የኤስኤምኤስ ቅንጅት ለመቀየር አልተቻለም!' : 'Failed to update SMS configuration!');
+    } finally {
+      setIsSmsSaving(false);
     }
   };
 
@@ -631,6 +764,28 @@ export default function App() {
           </button>
 
           <button
+            onClick={() => {
+              setActiveTab('sms-logs');
+              // refresh SMS logs instantly on tab click
+              fetch('/api/sms/logs')
+                .then(res => res.json())
+                .then(data => {
+                  if (Array.isArray(data)) setSmsLogs(data);
+                })
+                .catch(e => console.debug(e));
+            }}
+            className={`flex-1 md:flex-initial px-2.5 md:px-5 py-1.5 md:py-2 rounded-full text-[11px] md:text-xs font-semibold flex items-center justify-center gap-1 md:gap-1.5 transition-all ios-active-scale whitespace-nowrap ${
+              activeTab === 'sms-logs'
+                ? 'bg-neutral-900 text-white shadow-xs font-bold'
+                : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-200/40'
+            }`}
+            id="tab-sms-logs"
+          >
+            <MessageSquare className="w-3 md:w-3.5 h-3 md:h-3.5" />
+            {lang === 'am' ? 'የኤስኤምኤስ ታሪክ' : 'SMS History'}
+          </button>
+
+          <button
             onClick={() => setActiveTab('settings')}
             className={`flex-1 md:flex-initial px-2.5 md:px-5 py-1.5 md:py-2 rounded-full text-[11px] md:text-xs font-semibold flex items-center justify-center gap-1 md:gap-1.5 transition-all ios-active-scale whitespace-nowrap ${
               activeTab === 'settings'
@@ -792,16 +947,16 @@ export default function App() {
                       }
 
                       return (
-                        <button
+                        <div
                           key={client.id}
                           onClick={() => setSelectedCustomerId(client.id)}
-                          className={`w-full p-4 rounded-2xl text-left border flex items-center justify-between transition-all duration-200 group relative ios-active-scale ${
+                          className={`w-full p-4 rounded-2xl text-left border flex items-center justify-between transition-all duration-200 group relative cursor-pointer ${
                             isSelected
                               ? 'border-neutral-900 bg-neutral-50 shadow-ios font-medium'
                               : 'border-neutral-200/60 hover:border-neutral-450 bg-white'
                           }`}
                         >
-                          <div className="flex items-center gap-3 truncate">
+                          <div className="flex items-center gap-3 truncate pr-2">
                             {/* Color indicator badge globally nested next to the name */}
                             <span className={`w-3 h-3 rounded-full shrink-0 ${dotColor} border border-white shadow-xs`} title={`Retention Segment: ${client.retentionStatus}`} />
                             <div className="truncate">
@@ -812,13 +967,25 @@ export default function App() {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1 text-sm">
+                          <div className="flex items-center gap-2 text-sm shrink-0">
                             <span className={`text-[10px] uppercase tracking-wide font-extrabold px-2.5 py-0.5 rounded-full ${badgeStyle}`}>
                               {client.retentionStatus === 'Frequent' ? dict.filter_frequent : client.retentionStatus === 'Occasional' ? dict.filter_occasional : dict.filter_at_risk}
                             </span>
+                            {userRole === 'admin' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteCustomer(client.id);
+                                }}
+                                className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors ios-active-scale flex items-center justify-center border border-neutral-100 hover:border-red-100 bg-white shadow-xs"
+                                title={lang === 'am' ? 'ደንበኛ ሰርዝ' : 'Delete Customer'}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             <ChevronRight className="w-3.5 h-3.5 text-neutral-300 group-hover:transform group-hover:translate-x-0.5 transition-transform" />
                           </div>
-                        </button>
+                        </div>
                       );
                     })
                   )}
@@ -849,6 +1016,7 @@ export default function App() {
                   allVisits={allVisits}
                   staffList={staffList}
                   artistsList={artistsList}
+                  smsLogs={smsLogs}
                 />
               </div>
             )}
@@ -868,6 +1036,308 @@ export default function App() {
               staffList={staffList}
               artistsList={artistsList}
             />
+          </div>
+
+        ) : activeTab === 'sms-logs' ? (
+          
+          // SMS Logs and History dashboard
+          <div className="bg-white rounded-[24px] border border-neutral-200/50 shadow-ios p-6 max-w-4xl mx-auto space-y-6 animate-fade-in" id="sms-logs-dashboard">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-extrabold text-neutral-900 tracking-tight flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-neutral-500" /> {lang === 'am' ? 'የተላኩ ኤስኤምኤስ ታሪክ' : 'Sent SMS Dispatch Logs'}
+                </h2>
+                <p className="text-xs text-neutral-400 mt-1 font-medium">
+                  {lang === 'am' 
+                    ? 'ሁሉም የተላኩ፣ ያለፉና ያልተሳኩ የኤስኤምኤስ መልዕክቶች እና ሁኔታቸውን እዚህ ይቆጣጠሩ።' 
+                    : 'Track, inspect, and monitor automated and manual SMS dispatches and delivery reports.'}
+                </p>
+              </div>
+
+              {/* Action buttons: Clear logs, Refresh */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => {
+                    fetch('/api/sms/logs')
+                      .then(res => res.json())
+                      .then(data => {
+                        if (Array.isArray(data)) setSmsLogs(data);
+                      })
+                      .catch(e => console.debug(e));
+                  }}
+                  className="flex-1 sm:flex-initial px-4 py-2 rounded-full text-xs font-semibold bg-neutral-100 hover:bg-neutral-200/60 text-neutral-700 border border-neutral-200 flex items-center justify-center gap-1.5 transition-all ios-active-scale"
+                  id="btn-refresh-sms-logs"
+                >
+                  🔄 {lang === 'am' ? 'አድስ' : 'Refresh'}
+                </button>
+                {userRole === 'admin' && (
+                  <button
+                    onClick={() => {
+                      if (confirm(lang === 'am' ? 'በእርግጥ ሁሉንም የተላኩ ኤስኤምኤስ ሪፖርቶች ማጽዳት ይፈልጋሉ?' : 'Are you sure you want to clear all SMS logs?')) {
+                        fetch('/api/sms/logs/clear', { method: 'POST' })
+                          .then(() => setSmsLogs([]))
+                          .catch(e => console.debug(e));
+                      }
+                    }}
+                    className="flex-1 sm:flex-initial px-4 py-2 rounded-full text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 flex items-center justify-center gap-1.5 transition-all ios-active-scale"
+                    id="btn-clear-sms-logs"
+                  >
+                    🗑️ {lang === 'am' ? 'ማህደሩን አጽዳ' : 'Clear Logs'}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Quick status summary widget row */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4" id="sms-summary-widgets">
+              <div className="bg-neutral-50 border border-neutral-200/40 rounded-2xl p-4 flex flex-col justify-between" id="widget-sms-total">
+                <span className="text-[10px] uppercase tracking-wider font-extrabold text-neutral-400">
+                  {lang === 'am' ? 'ጠቅላላ መልዕክቶች' : 'Total Attempted'}
+                </span>
+                <span className="text-2xl font-black text-neutral-800 mt-1">{smsLogs.length}</span>
+              </div>
+              <div className="bg-emerald-50/50 border border-emerald-150 rounded-2xl p-4 flex flex-col justify-between" id="widget-sms-success">
+                <span className="text-[10px] uppercase tracking-wider font-extrabold text-emerald-500">
+                  {lang === 'am' ? 'የተሳኩ (Sent)' : 'Sent Successfully'}
+                </span>
+                <span className="text-2xl font-black text-emerald-700 mt-1 font-mono">
+                  {smsLogs.filter(l => l.status === 'Sent').length}
+                </span>
+              </div>
+              <div className="bg-rose-50/50 border border-rose-150 rounded-2xl p-4 flex flex-col justify-between" id="widget-sms-failed">
+                <span className="text-[10px] uppercase tracking-wider font-extrabold text-rose-500">
+                  {lang === 'am' ? 'ያልተሳኩ (Failed)' : 'Failed Dispatches'}
+                </span>
+                <span className="text-2xl font-black text-rose-700 mt-1 font-mono">
+                  {smsLogs.filter(l => l.status === 'Failed').length}
+                </span>
+              </div>
+            </div>
+
+            {/* Logs List Table */}
+            <div className="border border-neutral-200/50 rounded-2xl overflow-hidden bg-neutral-50/40" id="sms-logs-table-container">
+              {smsLogs.length === 0 ? (
+                <div className="p-12 text-center text-neutral-400 font-medium">
+                  <p className="text-sm">📭 {lang === 'am' ? 'እስካሁን ምንም የተላከ ኤስኤምኤስ ታሪክ የለም።' : 'No SMS log records found.'}</p>
+                  <p className="text-xs mt-1 text-neutral-350">
+                    {lang === 'am' ? 'የመጀመሪያው መልዕክት ሲላክ እዚህ ይመዘገባል።' : 'Sent notifications and failure reasons will appear in real-time here.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs" id="sms-logs-table">
+                    <thead>
+                      <tr className="bg-neutral-100 border-b border-neutral-200 text-neutral-500 font-extrabold uppercase tracking-widest text-[9px]">
+                        <th className="py-3 px-4">{lang === 'am' ? 'የስልክ ቁጥር' : 'Phone'}</th>
+                        <th className="py-3 px-4">{lang === 'am' ? 'መልዕክት' : 'Message Content'}</th>
+                        <th className="py-3 px-4 text-center">{lang === 'am' ? 'ሁኔታ (Status)' : 'Status'}</th>
+                        <th className="py-3 px-4 text-right">{lang === 'am' ? 'ጊዜ' : 'Sent Time'}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-200/60 bg-white">
+                      {smsLogs.map((log) => {
+                        const dateFormatted = new Date(log.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date(log.sent_at).toLocaleDateString();
+                        return (
+                          <tr key={log.id} className="hover:bg-neutral-50/80 transition-colors" id={`sms-row-${log.id}`}>
+                            <td className="py-3 px-4 font-mono font-bold text-neutral-700 whitespace-nowrap">
+                              {log.phone}
+                            </td>
+                            <td className="py-3 px-4 text-neutral-600 font-medium max-w-sm md:max-w-md break-words">
+                              {log.message}
+                              {log.error_message && (
+                                <div className="text-[10px] text-red-500 mt-1 font-semibold">
+                                  ⚠️ Error: {log.error_message}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              {log.status === 'Sent' ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-150 px-2.5 py-0.5 rounded-full">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                  {lang === 'am' ? 'ተልኳል' : 'Sent'}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-150 px-2.5 py-0.5 rounded-full" title={log.error_message}>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                  {lang === 'am' ? 'አልተላከም' : 'Failed'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right text-neutral-400 font-mono whitespace-nowrap">
+                              {dateFormatted}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Custom SMS Broadcaster Section */}
+            {userRole === 'admin' && (
+              <CustomBroadcaster 
+                customers={customers}
+                lang={lang}
+                dict={dict}
+                onRefreshLogs={() => {
+                  fetch('/api/sms/logs')
+                    .then(res => res.json())
+                    .then(data => {
+                      if (Array.isArray(data)) setSmsLogs(data);
+                    })
+                    .catch(e => console.debug(e));
+                }}
+              />
+            )}
+
+            {/* Birthday Campaign & SMS Center (Admin Only) */}
+            {userRole === 'admin' && (
+              <div className="space-y-4 pt-6 border-t border-neutral-150">
+                <div>
+                  <h3 className="text-xs font-extrabold uppercase tracking-widest text-[#A89F91] flex items-center gap-1.5">
+                    <span>🎂</span> {lang === 'am' ? 'የልደት በዓል ኤስኤምኤስ እና ዘመቻ ማዕከል' : 'Birthday Campaign & SMS Center'}
+                  </h3>
+                  <p className="text-[10px] text-neutral-400 mt-1 font-medium">
+                    {lang === 'am' ? 'ለደንበኞች የልደት ምኞት መልዕክቶችን እና የቅናሽ ኮዶችን ያስተላልፉ።' : 'Compose birthday wish texts, manage active customer promotions, and review logs.'}
+                  </p>
+                </div>
+
+                {/* Send Wish to Any Client Search Section */}
+                <div className="bg-neutral-50/50 rounded-2xl p-4 border border-neutral-200/50 space-y-3 animate-fade-in">
+                  <h4 className="text-xs font-bold text-neutral-850">
+                    {lang === 'am' ? 'ለማንኛውም ደንበኛ የልደት ምኞት ይላኩ' : 'Send Birthday Wish to Any Customer'}
+                  </h4>
+                  
+                  {/* Small customer picker */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="flex-1 relative">
+                      <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-neutral-400" />
+                      <input
+                        type="text"
+                        value={bdaySearchQuery}
+                        onChange={(e) => setBdaySearchQuery(e.target.value)}
+                        placeholder={lang === 'am' ? 'ደንበኛ በስም ወይም ስልክ ፈልግ...' : 'Search customer by name or phone...'}
+                        className="w-full pl-9 pr-4 py-2 text-xs bg-white border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 font-medium text-neutral-800"
+                        id="birthday-campaign-client-search"
+                      />
+                    </div>
+                  </div>
+
+                  {/* List of matching customers who have a birthday */}
+                  <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 bg-white p-2.5 rounded-xl border border-neutral-200/40">
+                    {(() => {
+                      const matched = customers.filter(c => {
+                        const nameMatch = c.full_name.toLowerCase().includes(bdaySearchQuery.toLowerCase());
+                        const phoneMatch = c.phone_number.includes(bdaySearchQuery);
+                        return (nameMatch || phoneMatch) && c.birth_date;
+                      });
+
+                      if (matched.length === 0) {
+                        return (
+                          <p className="text-[11px] text-neutral-400 text-center py-4">
+                            {lang === 'am' ? 'ምንም ደንበኛ (የልደት ቀን ያለው) አልተገኘም።' : 'No customers with birthday found.'}
+                          </p>
+                        );
+                      }
+
+                      return matched.slice(0, 10).map(c => {
+                        const etBirthday = c.birth_date ? convertToEthiopian(c.birth_date) : null;
+                        return (
+                          <div key={c.id} className="flex items-center justify-between p-2 hover:bg-neutral-50 rounded-lg text-xs">
+                            <div>
+                              <span className="font-bold text-neutral-850">{c.full_name}</span>
+                              <span className="text-[10px] text-neutral-400 font-mono ml-2">({c.phone_number})</span>
+                              {c.birth_date && (
+                                <span className="text-[10px] text-amber-700 font-bold ml-2 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100/60 inline-flex items-center gap-0.5">
+                                  🎂 {c.birth_date} {etBirthday ? `(${formatEthiopianDate(etBirthday, lang)})` : ''}
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setBirthdayWishCustomer(c)}
+                              className="px-2.5 py-1 bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ios-active-scale"
+                            >
+                              <span>✉️</span>
+                              <span>{lang === 'am' ? 'ምኞት ላክ' : 'Compose Wish'}</span>
+                            </button>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+
+                {/* Sent Wishes Archive / History Log */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-neutral-850 flex items-center gap-1">
+                    <span>📜</span> {lang === 'am' ? 'የተላኩ መልዕክቶች ታሪክ' : 'Sent Wishes History Log'} ({birthdayWishes.length})
+                  </h4>
+
+                  <div className="border border-neutral-200 rounded-2xl overflow-hidden bg-white">
+                    {birthdayWishes.length === 0 ? (
+                      <p className="text-xs text-neutral-400 text-center py-6">
+                        {lang === 'am' ? 'እስካሁን ምንም የተላከ የልደት ምኞት የለም።' : 'No birthday wishes sent or logged yet.'}
+                      </p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-neutral-50/75 border-b border-neutral-200 text-neutral-400 text-[10px] font-bold uppercase tracking-wider">
+                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'ደንበኛ' : 'Recipient'}</th>
+                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'ስልክ' : 'Phone'}</th>
+                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'ጉርሻ / ስጦታ' : 'Campaign Offer'}</th>
+                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'መልዕክት' : 'Message Body'}</th>
+                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'ቀን' : 'Sent Date'}</th>
+                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'በማን' : 'Sender'}</th>
+                              <th className="py-2.5 px-4 font-extrabold text-center">{lang === 'am' ? 'ሁኔታ' : 'Status'}</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-neutral-100">
+                            {birthdayWishes.slice(0, 10).map((w) => (
+                              <tr key={w.id} className="hover:bg-neutral-50/40 text-[11px] font-medium text-neutral-750">
+                                <td className="py-2.5 px-4 font-bold text-neutral-850">{w.customer_name}</td>
+                                <td className="py-2.5 px-4 font-mono text-[10px] text-neutral-500">{w.customer_phone}</td>
+                                <td className="py-2.5 px-4">
+                                  {w.offer_type === 'none' ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 text-[9px] font-black border border-neutral-200/50 uppercase">
+                                      {lang === 'am' ? 'ምኞት ብቻ' : 'Wish Only'}
+                                    </span>
+                                  ) : w.offer_type === '50_percent' ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[9px] font-black border border-amber-200/30 uppercase">
+                                      {lang === 'am' ? 'የ 50% ቅናሽ' : '50% Off'}
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[9px] font-black border border-emerald-200/30 uppercase">
+                                      🎉 {lang === 'am' ? 'ነጻ አገልግሎት' : 'Free Service'}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-4 max-w-[180px] truncate" title={w.message_text}>
+                                  {w.message_text}
+                                </td>
+                                <td className="py-2.5 px-4 font-mono text-[10px] text-neutral-400">
+                                  {new Date(w.sent_at).toLocaleDateString()}
+                                </td>
+                                <td className="py-2.5 px-4 text-neutral-600 font-bold">{w.sent_by}</td>
+                                <td className="py-2.5 px-4 text-center">
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase bg-neutral-100 text-neutral-600 px-2.5 py-0.5 rounded-full border border-neutral-200/40" title="Draft simulation logged successfully inside Firestore">
+                                    🟢 {lang === 'am' ? 'ተመዝግቧል' : 'Logged'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            )}
           </div>
 
         ) : (
@@ -923,6 +1393,80 @@ export default function App() {
                   <LogOut className="w-3.5 h-3.5" />
                   {lang === 'am' ? 'ከሲስተሙ ውጣ (Logout)' : 'Logout of Session'}
                 </button>
+              </div>
+            </div>
+
+            {/* SMS Gateway Configurations Toggle */}
+            <div className="bg-neutral-50 rounded-2xl p-5 border border-neutral-200/50 space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <h3 className="text-xs font-extrabold uppercase tracking-widest text-[#A89F91] flex items-center gap-1.5">
+                    <MessageSquare className="w-4 h-4 text-neutral-400" /> 
+                    {lang === 'am' ? 'የኤስኤምኤስ መላኪያ ቅንጅቶች' : 'GeezSMS Gateway Configuration'}
+                  </h3>
+                  <p className="text-xs font-bold text-neutral-800">
+                    {lang === 'am' ? 'የደንበኛ ኤስኤምኤስ አገልግሎት' : 'Automated Client SMS Dispatch'}
+                  </p>
+                  <p className="text-[11px] text-neutral-400 font-medium leading-relaxed">
+                    {lang === 'am'
+                      ? 'ሲበራ፡ ደንበኞች ሲመዘገቡ፣ ክፍያ ሲፈጽሙ እና ልደት ሲከበር የራስ-ሰር ምስጋና እና የእንኳን አደረሳችሁ መልዕክት በGeezSMS በኩል ይላክላቸዋል።'
+                      : 'When enabled, clients will automatically receive real-time welcome notifications, post-visit thank you receipts, and birthday campaign rewards via GeezSMS.'}
+                  </p>
+                </div>
+
+                {/* iOS Style Switch/Toggle button */}
+                <div className="flex items-center pt-1 shrink-0">
+                  <button
+                    type="button"
+                    disabled={isSmsSaving}
+                    onClick={() => handleToggleSms(!smsEnabled)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      smsEnabled ? 'bg-neutral-900' : 'bg-neutral-250'
+                    } ${userRole !== 'admin' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={
+                      userRole !== 'admin' 
+                        ? (lang === 'am' ? 'የአስተዳዳሪ መብት ያስፈልጋል' : 'Admin privilege required') 
+                        : (lang === 'am' ? 'ማብሪያ / ማጥፊያ' : 'Toggle Switch')
+                    }
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                        smsEnabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Display Notice for Cashier or Non-Admins */}
+              {userRole !== 'admin' && (
+                <div className="p-3 bg-amber-50/50 border border-amber-200/40 rounded-xl text-[10px] text-amber-800 font-bold flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>
+                    {lang === 'am' 
+                      ? 'የኤስኤምኤስ ቅንጅቶችን ማብራት ወይም ማጥፋት የሚችሉት አስተዳዳሪዎች (Admin) ብቻ ናቸው።' 
+                      : 'Only Salon Administrators have permission to modify or toggle automated SMS dispatch.'}
+                  </span>
+                </div>
+              )}
+
+              {/* Display Status Indicator */}
+              <div className="pt-2 border-t border-neutral-200/40 flex items-center justify-between text-[11px] font-bold">
+                <span className="text-neutral-400">
+                  {lang === 'am' ? 'የአሁኑ የኤስኤምኤስ ሁኔታ:' : 'Gateway Status:'}
+                </span>
+                {smsEnabled ? (
+                  <span className="text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    {lang === 'am' ? 'ኤስኤምኤስ በርቷል (Active)' : 'SMS Dispatch Active'}
+                  </span>
+                ) : (
+                  <span className="text-neutral-500 bg-neutral-100 px-2.5 py-0.5 rounded-full border border-neutral-200/60 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
+                    {lang === 'am' ? 'ኤስኤምኤስ ጠፍቷል (Disabled)' : 'SMS Dispatch Disabled'}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -1272,152 +1816,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Birthday Campaign & SMS Center (Admin Only) */}
-            {userRole === 'admin' && (
-              <div className="space-y-4 pt-6 border-t border-neutral-100">
-                <div>
-                  <h3 className="text-xs font-extrabold uppercase tracking-widest text-[#A89F91] flex items-center gap-1.5">
-                    <span>🎂</span> {lang === 'am' ? 'የልደት በዓል ኤስኤምኤስ እና ዘመቻ ማዕከል' : 'Birthday Campaign & SMS Center'}
-                  </h3>
-                  <p className="text-[10px] text-neutral-400 mt-1 font-medium">
-                    {lang === 'am' ? 'ለደንበኞች የልደት ምኞት መልዕክቶችን እና የቅናሽ ኮዶችን ያስተላልፉ።' : 'Compose birthday wish texts, manage active customer promotions, and review logs.'}
-                  </p>
-                </div>
 
-                {/* Send Wish to Any Client Search Section */}
-                <div className="bg-neutral-50/50 rounded-2xl p-4 border border-neutral-200/50 space-y-3 animate-fade-in">
-                  <h4 className="text-xs font-bold text-neutral-850">
-                    {lang === 'am' ? 'ለማንኛውም ደንበኛ የልደት ምኞት ይላኩ' : 'Send Birthday Wish to Any Customer'}
-                  </h4>
-                  
-                  {/* Small customer picker */}
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <div className="flex-1 relative">
-                      <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-neutral-400" />
-                      <input
-                        type="text"
-                        value={bdaySearchQuery}
-                        onChange={(e) => setBdaySearchQuery(e.target.value)}
-                        placeholder={lang === 'am' ? 'ደንበኛ በስም ወይም ስልክ ፈልግ...' : 'Search customer by name or phone...'}
-                        className="w-full pl-9 pr-4 py-2 text-xs bg-white border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 font-medium text-neutral-800"
-                        id="birthday-campaign-client-search"
-                      />
-                    </div>
-                  </div>
-
-                  {/* List of matching customers who have a birthday */}
-                  <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 bg-white p-2.5 rounded-xl border border-neutral-200/40">
-                    {(() => {
-                      const matched = customers.filter(c => {
-                        const nameMatch = c.full_name.toLowerCase().includes(bdaySearchQuery.toLowerCase());
-                        const phoneMatch = c.phone_number.includes(bdaySearchQuery);
-                        return (nameMatch || phoneMatch) && c.birth_date;
-                      });
-
-                      if (matched.length === 0) {
-                        return (
-                          <p className="text-[11px] text-neutral-400 text-center py-4">
-                            {lang === 'am' ? 'ምንም ደንበኛ (የልደት ቀን ያለው) አልተገኘም።' : 'No customers with birthday found.'}
-                          </p>
-                        );
-                      }
-
-                      return matched.slice(0, 10).map(c => {
-                        const etBirthday = c.birth_date ? convertToEthiopian(c.birth_date) : null;
-                        return (
-                          <div key={c.id} className="flex items-center justify-between p-2 hover:bg-neutral-50 rounded-lg text-xs">
-                            <div>
-                              <span className="font-bold text-neutral-850">{c.full_name}</span>
-                              <span className="text-[10px] text-neutral-400 font-mono ml-2">({c.phone_number})</span>
-                              {c.birth_date && (
-                                <span className="text-[10px] text-amber-700 font-bold ml-2 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100/60 inline-flex items-center gap-0.5">
-                                  🎂 {c.birth_date} {etBirthday ? `(${formatEthiopianDate(etBirthday, lang)})` : ''}
-                                </span>
-                              )}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setBirthdayWishCustomer(c)}
-                              className="px-2.5 py-1 bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ios-active-scale"
-                            >
-                              <span>✉️</span>
-                              <span>{lang === 'am' ? 'ምኞት ላክ' : 'Compose Wish'}</span>
-                            </button>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-
-                {/* Sent Wishes Archive / History Log */}
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-neutral-850 flex items-center gap-1">
-                    <span>📜</span> {lang === 'am' ? 'የተላኩ መልዕክቶች ታሪክ' : 'Sent Wishes History Log'} ({birthdayWishes.length})
-                  </h4>
-
-                  <div className="border border-neutral-200 rounded-2xl overflow-hidden bg-white">
-                    {birthdayWishes.length === 0 ? (
-                      <p className="text-xs text-neutral-400 text-center py-6">
-                        {lang === 'am' ? 'እስካሁን ምንም የተላከ የልደት ምኞት የለም።' : 'No birthday wishes sent or logged yet.'}
-                      </p>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs border-collapse">
-                          <thead>
-                            <tr className="bg-neutral-50/75 border-b border-neutral-200 text-neutral-400 text-[10px] font-bold uppercase tracking-wider">
-                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'ደንበኛ' : 'Recipient'}</th>
-                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'ስልክ' : 'Phone'}</th>
-                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'ጉርሻ / ስጦታ' : 'Campaign Offer'}</th>
-                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'መልዕክት' : 'Message Body'}</th>
-                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'ቀን' : 'Sent Date'}</th>
-                              <th className="py-2.5 px-4 font-extrabold">{lang === 'am' ? 'በማን' : 'Sender'}</th>
-                              <th className="py-2.5 px-4 font-extrabold text-center">{lang === 'am' ? 'ሁኔታ' : 'Status'}</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-neutral-100">
-                            {birthdayWishes.slice(0, 10).map((w) => (
-                              <tr key={w.id} className="hover:bg-neutral-50/40 text-[11px] font-medium text-neutral-750">
-                                <td className="py-2.5 px-4 font-bold text-neutral-850">{w.customer_name}</td>
-                                <td className="py-2.5 px-4 font-mono text-[10px] text-neutral-500">{w.customer_phone}</td>
-                                <td className="py-2.5 px-4">
-                                  {w.offer_type === 'none' ? (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 text-[9px] font-black border border-neutral-200/50 uppercase">
-                                      {lang === 'am' ? 'ምኞት ብቻ' : 'Wish Only'}
-                                    </span>
-                                  ) : w.offer_type === '50_percent' ? (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[9px] font-black border border-amber-200/30 uppercase">
-                                      {lang === 'am' ? 'የ 50% ቅናሽ' : '50% Off'}
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[9px] font-black border border-emerald-200/30 uppercase">
-                                      🎉 {lang === 'am' ? 'ነጻ አገልግሎት' : 'Free Service'}
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="py-2.5 px-4 max-w-[180px] truncate" title={w.message_text}>
-                                  {w.message_text}
-                                </td>
-                                <td className="py-2.5 px-4 font-mono text-[10px] text-neutral-400">
-                                  {new Date(w.sent_at).toLocaleDateString()}
-                                </td>
-                                <td className="py-2.5 px-4 text-neutral-600 font-bold">{w.sent_by}</td>
-                                <td className="py-2.5 px-4 text-center">
-                                  <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase bg-neutral-100 text-neutral-600 px-2.5 py-0.5 rounded-full border border-neutral-200/40" title="Draft simulation logged successfully inside Firestore">
-                                    🟢 {lang === 'am' ? 'ተመዝግቧል' : 'Logged'}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-              </div>
-            )}
 
           </div>
         )}

@@ -20,9 +20,10 @@ interface ClientDashboardProps {
   allVisits?: Visit[];
   staffList?: any[];
   artistsList?: TreatmentArtist[];
+  smsLogs?: any[];
 }
 
-export default function ClientDashboard({ customer, onLogVisitForCustomer, onRefreshTrigger, lang, dict, allVisits = [], staffList = [], artistsList = [] }: ClientDashboardProps) {
+export default function ClientDashboard({ customer, onLogVisitForCustomer, onRefreshTrigger, lang, dict, allVisits = [], staffList = [], artistsList = [], smsLogs = [] }: ClientDashboardProps) {
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [editedNotes, setEditedNotes] = useState('');
   const [notesFeedback, setNotesFeedback] = useState(false);
@@ -434,6 +435,73 @@ export default function ClientDashboard({ customer, onLogVisitForCustomer, onRef
                 {dict.note_saved_success}
               </span>
             )}
+          </div>
+
+          {/* SMS Dispatch & Delivery Status */}
+          <div className="bg-neutral-50 p-5 rounded-2xl border border-neutral-200/50 shadow-xs space-y-3" id="client-sms-telemetry">
+            <h4 className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
+              ✉️ {lang === 'am' ? 'የኤስኤምኤስ ታሪክ እና ሁኔታ' : 'SMS Dispatch & Delivery Status'}
+            </h4>
+            
+            {(() => {
+              // Normalize numbers to match robustly on the last 9 digits
+              const last9Digits = (num: string) => {
+                const cleaned = num.trim().replace(/[\s\-\(\)\+]/g, '');
+                return cleaned.substring(Math.max(0, cleaned.length - 9));
+              };
+              const clientPhoneLast9 = last9Digits(customer.phone_number);
+              const matchedLogs = (smsLogs || []).filter(log => {
+                if (!log.phone) return false;
+                return last9Digits(log.phone) === clientPhoneLast9;
+              });
+
+              if (matchedLogs.length === 0) {
+                return (
+                  <div className="text-center py-6 text-neutral-400">
+                    <p className="text-xs font-medium">📭 {lang === 'am' ? 'እስካሁን ምንም የተላከ ኤስኤምኤስ ታሪክ የለም።' : 'No SMS dispatches recorded for this client.'}</p>
+                    <p className="text-[10px] text-neutral-350 mt-1 leading-normal">
+                      {lang === 'am' 
+                        ? 'ለዚህ ደንበኛ የደስታ ምኞት፣ የጉብኝት ማረጋገጫ ወይም ሌላ የኤስኤምኤስ መልዕክት ሲላክ እዚህ ሁኔታውን ማየት ይችላሉ።' 
+                        : 'Status indicators (Sent/Failed) will appear in real-time once a welcome, thank-you, birthday, or custom message is triggered.'}
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1" id="client-sms-logs-list">
+                  {matchedLogs.map(log => {
+                    const logDate = new Date(log.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date(log.sent_at).toLocaleDateString();
+                    return (
+                      <div key={log.id} className="p-3 bg-white border border-neutral-200/60 rounded-xl space-y-1.5 shadow-2xs" id={`client-log-${log.id}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[9px] font-mono font-bold text-neutral-400">{logDate}</span>
+                          {log.status === 'Sent' ? (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              {lang === 'am' ? 'ተልኳል' : 'Sent'}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black text-rose-700 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-full" title={log.error_message}>
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                              {lang === 'am' ? 'አልተላከም' : 'Failed'}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] font-semibold text-neutral-700 leading-snug break-words">
+                          {log.message}
+                        </p>
+                        {log.error_message && (
+                          <p className="text-[9px] text-red-500 font-extrabold bg-red-50/40 p-1.5 rounded-md border border-red-100 leading-normal">
+                            ⚠️ {log.error_message}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
 
         </div>

@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { CustomerWithRetention, PaymentMethod, SalonService, Language, Visit, StaffMember, TreatmentArtist } from '../types';
 import { Dict, translateName, translateSkills, translateServiceName, translateCategory } from '../translations';
 import { Search, X, Check, Landmark, CreditCard, DollarSign, Receipt, Sparkles, Coins, Users, Hammer } from 'lucide-react';
-import { collection, doc, setDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../lib/firebase';
 import { classifyCustomer } from '../lib/retention';
 
@@ -148,28 +148,47 @@ export default function CheckInModal({
       // Send Real-time Visit Completed / Payment Received SMS via backend GeezSMS proxy
       if (selectedClient) {
         try {
-          // Resolve services used to service names
-          const matchedNames = selectedServices.map(itemId => {
-            const found = (salonServices || []).find(s => s.id === itemId);
-            return found ? translateServiceName(found.id, found.name, lang) : itemId;
-          });
-          const serviceNamesText = matchedNames.join(', ');
+          // Check if SMS is enabled in Firestore settings with fallback to backend API
+          let isSmsEnabled = true;
+          try {
+            const smsConfigSnap = await getDoc(doc(db, 'settings', 'sms'));
+            isSmsEnabled = smsConfigSnap.exists() ? smsConfigSnap.data().enabled !== false : true;
+          } catch (err) {
+            console.warn("Firestore settings lookup failed in CheckInModal, using backend API fallback:", err);
+            try {
+              const apiRes = await fetch('/api/settings/sms-status').then(r => r.json());
+              isSmsEnabled = apiRes.enabled !== false;
+            } catch (fallbackErr) {
+              console.error("Backend SMS status fallback failed:", fallbackErr);
+            }
+          }
 
-          const thanksMsg = lang === 'am'
-            ? `ውድ ${selectedClient.full_name}፣ ስለመጡልን እናመሰግናለን! ለወሰዱት አገልግሎት (${serviceNamesText}) በ${paymentChannel === 'Cash' ? 'በጥሬ ገንዘብ' : paymentChannel} ${Number(priceCharged)} ብር ከፍለዋል። በድጋሚ እንዲጎበኙን እንጠብቃለን!`
-            : `Dear ${selectedClient.full_name}, thank you for visiting Konjo Salon! You have successfully paid ${Number(priceCharged)} Birr via ${paymentChannel} for services: ${serviceNamesText}. We look forward to seeing you again!`;
+          if (!isSmsEnabled) {
+            console.log('[GeezSMS] SMS sending is disabled in settings. Skipping SMS dispatch.');
+          } else {
+            // Resolve services used to service names
+            const matchedNames = selectedServices.map(itemId => {
+              const found = (salonServices || []).find(s => s.id === itemId);
+              return found ? translateServiceName(found.id, found.name, lang) : itemId;
+            });
+            const serviceNamesText = matchedNames.join(', ');
 
-          await fetch('/api/sms/send', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              phone: selectedClient.phone_number,
-              message: thanksMsg
-            })
-          });
-          console.log('[GeezSMS] Visit thank you SMS triggered successfully');
+            const thanksMsg = lang === 'am'
+              ? `ውድ ${selectedClient.full_name}፣ ስለመጡልን እናመሰግናለን! ለወሰዱት አገልግሎት (${serviceNamesText}) በ${paymentChannel === 'Cash' ? 'በጥሬ ገንዘብ' : paymentChannel} ${Number(priceCharged)} ብር ከፍለዋል። በድጋሚ እንዲጎበኙን እንጠብቃለን!`
+              : `Dear ${selectedClient.full_name}, thank you for visiting Kaldas Beauty Salon! You have successfully paid ${Number(priceCharged)} Birr via ${paymentChannel} for services: ${serviceNamesText}. We look forward to seeing you again!`;
+
+            await fetch('/api/sms/send', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                phone: selectedClient.phone_number,
+                message: thanksMsg
+              })
+            });
+            console.log('[GeezSMS] Visit thank you SMS triggered successfully');
+          }
         } catch (smsErr) {
           console.error('[GeezSMS] Bypassed or failed visit thank you SMS dispatch:', smsErr);
         }

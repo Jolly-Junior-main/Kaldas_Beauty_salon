@@ -1,5 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, setLogLevel } from 'firebase/firestore';
+
+// Suppress Firestore connection warning/error console logs as we handle offline gracefully
+setLogLevel('silent');
 
 const firebaseConfig = {
   apiKey: "AIzaSyCJbJkcEbJOfiugVmFLnhZ6KrMRTHYryUk",
