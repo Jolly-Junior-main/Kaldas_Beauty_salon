@@ -101,7 +101,7 @@ function saveSmsLog(phone: string, message: string, status: 'Sent' | 'Failed', e
 // --- GEEZ SMS INTEGRATION ---
 async function sendGeezSMS(phoneNumber: string, messageText: string) {
   // Clean token of potential quotes or whitespace
-  const rawToken = 'yRedFrjJiBa6JqKxjKlZHXOA3Sc7QYsS';
+  const rawToken = process.env.GEEZ_SMS_TOKEN || 'qC97FUJ2IItf2DyvIutxxqWh1rSGnihx';
   const token = rawToken.trim().replace(/^["']|["']$/g, '').trim();
   
   // Normalize Ethiopian phone number format to standard 12-digit international format (starting with 251)
