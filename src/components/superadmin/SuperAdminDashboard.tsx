@@ -34,13 +34,14 @@ import {
 import OrganizationList from './OrganizationList';
 import OrganizationDetailView from './OrganizationDetailView';
 import CreateSalonModal from './CreateSalonModal';
+import ResetPasswordModal from './ResetPasswordModal';
 import SubscriptionPlansManager from './SubscriptionPlansManager';
 import PaymentsLedger from './PaymentsLedger';
 import RevenueAnalytics from './RevenueAnalytics';
 import AdvertisementManager from './AdvertisementManager';
 import ActivityLogView from './ActivityLogView';
 
-import { runSaaSMigrationIfNeeded, DEFAULT_ORG_ID } from '../../lib/migration';
+import { runSaaSMigrationIfNeeded, DEFAULT_ORG_ID, SEEDED_ORGANIZATIONS } from '../../lib/migration';
 
 type SuperAdminTab = 
   | 'overview' 
@@ -55,11 +56,12 @@ type SuperAdminTab =
 export default function SuperAdminDashboard() {
   const { switchOrganization, logout, loggedInUser } = useTenant();
   const [activeTab, setActiveTab] = useState<SuperAdminTab>('overview');
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>(SEEDED_ORGANIZATIONS);
   const [payments, setPayments] = useState<SaaSOrganizationPayment[]>([]);
   const [ads, setAds] = useState<Advertisement[]>([]);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [resetPasswordOrg, setResetPasswordOrg] = useState<Organization | null>(null);
 
   // Guarantee SaaS migration & database bootstrapping on Super Admin mount
   useEffect(() => {
@@ -68,33 +70,13 @@ export default function SuperAdminDashboard() {
 
   // Subscribe to all organizations, payments, and ads in real-time
   useEffect(() => {
-    const defaultKaldasFallback: Organization = {
-      id: DEFAULT_ORG_ID,
-      salonName: 'Kaldas Beauty Salon',
-      ownerName: 'Admin1',
-      phone: '+251 911 234567',
-      email: 'owner@kaldasbeauty.com',
-      tinNumber: '009845231',
-      address: 'Bole Medhanialem, Edna Mall Tower 3rd Floor',
-      city: 'Addis Ababa',
-      country: 'Ethiopia',
-      status: 'active',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      trialStartDate: '2026-01-01T00:00:00.000Z',
-      trialEndDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-      subscriptionStatus: 'active',
-      planId: 'plan_1y',
-      subscriptionId: `sub_${DEFAULT_ORG_ID}`,
-      numberOfStaff: 8,
-      lastLoginAt: new Date().toISOString()
-    };
-
     let firestoreOrgs: Organization[] = [];
     let settingsOrgs: Organization[] = [];
 
     const updateCombinedOrgs = () => {
       const map = new Map<string, Organization>();
-      map.set(DEFAULT_ORG_ID, defaultKaldasFallback);
+      // Initialize with all seeded salons (Kaldas + 5 new rich salons)
+      SEEDED_ORGANIZATIONS.forEach(o => map.set(o.id, o));
       settingsOrgs.forEach(o => map.set(o.id, o));
       firestoreOrgs.forEach(o => map.set(o.id, o));
 
@@ -325,6 +307,7 @@ export default function SuperAdminDashboard() {
               organization={selectedOrg}
               onBack={() => setSelectedOrg(null)}
               onOpenCRM={handleOpenCRM}
+              onResetPassword={(org) => setResetPasswordOrg(org)}
             />
           ) : (
             <>
@@ -429,6 +412,7 @@ export default function SuperAdminDashboard() {
                     onSelectOrg={(org) => setSelectedOrg(org)}
                     onOpenCRM={handleOpenCRM}
                     onManageSub={(org) => setSelectedOrg(org)}
+                    onResetPassword={(org) => setResetPasswordOrg(org)}
                     onSuspend={handleSuspend}
                     onReactivate={handleReactivate}
                     onDelete={handleDelete}
@@ -444,6 +428,7 @@ export default function SuperAdminDashboard() {
                   onSelectOrg={(org) => setSelectedOrg(org)}
                   onOpenCRM={handleOpenCRM}
                   onManageSub={(org) => setSelectedOrg(org)}
+                  onResetPassword={(org) => setResetPasswordOrg(org)}
                   onSuspend={handleSuspend}
                   onReactivate={handleReactivate}
                   onDelete={handleDelete}
@@ -477,6 +462,14 @@ export default function SuperAdminDashboard() {
           onSalonCreated={(newOrg) => {
             setSelectedOrg(newOrg);
           }}
+        />
+      )}
+
+      {/* Reset Password Modal */}
+      {resetPasswordOrg && (
+        <ResetPasswordModal
+          organization={resetPasswordOrg}
+          onClose={() => setResetPasswordOrg(null)}
         />
       )}
     </div>

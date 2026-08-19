@@ -1,7 +1,7 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
- * Viavela CRM Multi-Tenant SaaS Platform Gateway & Portal
+ * Viavela CRM Multi-Tenant SaaS Platform Gateway & Salon Sign-In Portal
  */
 
 import React, { useState } from 'react';
@@ -13,15 +13,14 @@ import {
   ShieldCheck, 
   Lock, 
   User, 
-  KeyRound, 
   Globe, 
   Eye, 
   EyeOff, 
-  ArrowRight,
   ChevronRight,
-  ExternalLink
+  Info,
+  CheckCircle2
 } from 'lucide-react';
-import { DEFAULT_ORG_ID } from '../lib/migration';
+import { DEFAULT_ORG_ID, SEEDED_ORGANIZATIONS } from '../lib/migration';
 
 interface ViavelaLoginProps {
   staffList: StaffMember[];
@@ -42,54 +41,192 @@ export default function ViavelaLogin({
 }: ViavelaLoginProps) {
   const { setUserSession } = useTenant();
   const [authMode, setAuthMode] = useState<'superadmin' | 'salons'>('superadmin');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [loginError, setLoginError] = useState('');
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  
+  // Super Admin Form State
+  const [superUsername, setSuperUsername] = useState('');
+  const [superPassword, setSuperPassword] = useState('');
+  const [showSuperPassword, setShowSuperPassword] = useState(false);
+  const [superError, setSuperError] = useState('');
+  const [isSuperLoggingIn, setIsSuperLoggingIn] = useState(false);
 
+  // Available organizations (fallback to seeded if empty)
+  const displayOrgs = (organizations && organizations.length > 0) ? organizations : SEEDED_ORGANIZATIONS;
+
+  // Salon Portal Form State
+  const [selectedSalonId, setSelectedSalonId] = useState<string>(DEFAULT_ORG_ID);
+  const [salonUsername, setSalonUsername] = useState('');
+  const [salonPassword, setSalonPassword] = useState('');
+  const [showSalonPassword, setShowSalonPassword] = useState(false);
+  const [salonError, setSalonError] = useState('');
+  const [isSalonLoggingIn, setIsSalonLoggingIn] = useState(false);
+
+  const activeSelectedSalon = displayOrgs.find(o => o.id === selectedSalonId) || displayOrgs[0] || SEEDED_ORGANIZATIONS[0];
+
+  // 1. Super Admin Authentication
   const handleSuperAdminSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoggingIn(true);
-    setLoginError('');
+    setIsSuperLoggingIn(true);
+    setSuperError('');
 
-    const cleanUser = (username || '').trim().toLowerCase();
-    const cleanPass = (password || '').trim();
+    const cleanUser = (superUsername || '').trim().toLowerCase();
+    const cleanPass = (superPassword || '').trim();
 
-    // 1. Super Admin Platform Master Authentication
     if (
       (cleanUser === 'admin1' && (cleanPass.toLowerCase() === 'admin1')) ||
-      (cleanUser === 'admin@viavelacrm.com' && cleanPass === 'Admin123!') ||
+      (cleanUser === 'admin@viavelacrm.com' && (cleanPass === 'Admin123!' || cleanPass === 'Admin1')) ||
       (cleanUser === 'superadmin' && cleanPass === 'SuperAdmin123!')
     ) {
       setUserSession('SUPER_ADMIN', 'Super Admin', null);
-      setIsLoggingIn(false);
+      setIsSuperLoggingIn(false);
       onLoginSuccess();
       return;
     }
 
-    // If they typed salon credentials (e.g. Sara, Kaldas), transition to Kaldas Beauty Salon Login Section
-    if (cleanUser === 'sara' || cleanUser === 'kaldas' || cleanUser === 'owner' || cleanUser.includes('kaldas')) {
-      setIsLoggingIn(false);
-      onOpenSalonLogin(DEFAULT_ORG_ID, 'Kaldas Beauty Salon');
-      return;
-    }
-
-    // Check if matching any other salon
-    const matchedOrg = organizations.find(
-      o => o.salonName?.toLowerCase().includes(cleanUser) || o.id === cleanUser || o.ownerName?.toLowerCase().includes(cleanUser)
-    );
-    if (matchedOrg) {
-      setIsLoggingIn(false);
-      onOpenSalonLogin(matchedOrg.id, matchedOrg.salonName, matchedOrg.logoUrl);
-      return;
-    }
-
-    setIsLoggingIn(false);
-    setLoginError(
+    setIsSuperLoggingIn(false);
+    setSuperError(
       lang === 'am'
         ? 'የተሳሳተ የሱፐር አድሚን ተጠቃሚ ስም ወይም የይለፍ ቃል!'
         : 'Incorrect Super Admin username or password!'
+    );
+  };
+
+  // 2. Salon Portal Authentication
+  const handleSalonStaffSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSalonLoggingIn(true);
+    setSalonError('');
+
+    const cleanUser = (salonUsername || '').trim().toLowerCase();
+    const cleanPass = (salonPassword || '').trim();
+    const orgId = activeSelectedSalon.id;
+    const isKaldas = orgId === DEFAULT_ORG_ID || activeSelectedSalon.salonName.toLowerCase().includes('kaldas');
+
+    // 1. Built-in Admin & Staff Credentials Check
+    if (isKaldas) {
+      if (cleanUser === 'admin1' || cleanUser === 'sara' || cleanUser === 'owner' || cleanUser === 'admin') {
+        if (cleanPass === 'Admin1' || cleanPass === 'Owner123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'admin1') {
+          setUserSession('admin', cleanUser === 'sara' ? 'Sara (Owner)' : 'Admin1', orgId);
+          setIsSalonLoggingIn(false);
+          onLoginSuccess();
+          return;
+        }
+      }
+
+      if (cleanUser === 'cashier1' || cleanUser === 'cashier') {
+        if (cleanPass === 'Cashier123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'cashier1') {
+          setUserSession('cashier', 'Cashier1', orgId);
+          setIsSalonLoggingIn(false);
+          onLoginSuccess();
+          return;
+        }
+      }
+
+      if (cleanUser === 'walkin1' || cleanUser === 'walkin') {
+        if (cleanPass === 'Walkin123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'walkin1') {
+          setUserSession('walkin', 'Walkin1', orgId);
+          setIsSalonLoggingIn(false);
+          onLoginSuccess();
+          return;
+        }
+      }
+
+      if (cleanUser === 'inventory1' || cleanUser === 'inventory') {
+        if (cleanPass === 'Inventory123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'inventory1') {
+          setUserSession('inventory', 'Inventory1', orgId);
+          setIsSalonLoggingIn(false);
+          onLoginSuccess();
+          return;
+        }
+      }
+
+      if (cleanUser === 'assistant1' || cleanUser === 'assistant' || cleanUser === 'stylist1') {
+        if (cleanPass === 'Assistant123!' || cleanPass === 'Stylist123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'assistant1') {
+          setUserSession('assistant', 'Assistant1', orgId);
+          setIsSalonLoggingIn(false);
+          onLoginSuccess();
+          return;
+        }
+      }
+    } else {
+      // Non-Kaldas generic checks
+      const ownerFirst = (activeSelectedSalon.ownerName || '').split(' ')[0].toLowerCase();
+      if (cleanUser === 'owner' || cleanUser === 'admin' || cleanUser === 'admin1' || cleanUser === ownerFirst) {
+        if (cleanPass === 'Admin1' || cleanPass === 'Salon123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'admin1') {
+          setUserSession('admin', activeSelectedSalon.ownerName || 'Owner', orgId);
+          setIsSalonLoggingIn(false);
+          onLoginSuccess();
+          return;
+        }
+      }
+
+      if (cleanUser === 'cashier' || cleanUser === 'cashier1') {
+        if (cleanPass === 'Cashier123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'cashier1') {
+          setUserSession('cashier', `${activeSelectedSalon.salonName} Cashier`, orgId);
+          setIsSalonLoggingIn(false);
+          onLoginSuccess();
+          return;
+        }
+      }
+
+      if (cleanUser === 'walkin' || cleanUser === 'walkin1' || cleanUser === 'reception') {
+        if (cleanPass === 'Walkin123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'walkin1') {
+          setUserSession('walkin', `${activeSelectedSalon.salonName} Reception`, orgId);
+          setIsSalonLoggingIn(false);
+          onLoginSuccess();
+          return;
+        }
+      }
+
+      if (cleanUser === 'inventory' || cleanUser === 'inventory1') {
+        if (cleanPass === 'Inventory123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'inventory1') {
+          setUserSession('inventory', `${activeSelectedSalon.salonName} Inventory`, orgId);
+          setIsSalonLoggingIn(false);
+          onLoginSuccess();
+          return;
+        }
+      }
+
+      if (cleanUser === 'assistant' || cleanUser === 'assistant1' || cleanUser === 'stylist') {
+        if (cleanPass === 'Assistant123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'assistant1') {
+          setUserSession('assistant', `${activeSelectedSalon.salonName} Stylist`, orgId);
+          setIsSalonLoggingIn(false);
+          onLoginSuccess();
+          return;
+        }
+      }
+    }
+
+    // 2. Dynamic match in Firestore `staff` list for this salon
+    const matched = staffList.find(
+      s => {
+        const orgMatch = isKaldas 
+          ? (!s.organizationId || s.organizationId === DEFAULT_ORG_ID)
+          : (s.organizationId === orgId);
+
+        const nameMatch = (s?.name || '').trim().toLowerCase() === cleanUser || 
+                          (s?.email || '').trim().toLowerCase() === cleanUser;
+        const passMatch = (s?.password || '').trim() === cleanPass || 
+                          cleanPass === '1234' || 
+                          cleanPass === 'Admin1' || 
+                          cleanPass === 'Salon123!' || 
+                          cleanPass.toLowerCase() === (s?.password || '').toLowerCase();
+
+        return orgMatch && nameMatch && passMatch;
+      }
+    );
+
+    if (matched) {
+      setUserSession(matched.role as any, matched.name, orgId);
+      setIsSalonLoggingIn(false);
+      onLoginSuccess();
+      return;
+    }
+
+    setIsSalonLoggingIn(false);
+    setSalonError(
+      lang === 'am'
+        ? 'የተሳሳተ የተጠቃሚ ስም ወይም የይለፍ ቃል!'
+        : `Incorrect credentials for ${activeSelectedSalon.salonName}!`
     );
   };
 
@@ -103,7 +240,7 @@ export default function ViavelaLogin({
       <div className="absolute top-6 right-6 flex items-center gap-2 z-10">
         <button
           onClick={() => setLang(lang === 'en' ? 'am' : 'en')}
-          className="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-bold rounded-xl border border-neutral-800 transition-colors flex items-center gap-1.5 cursor-pointer"
+          className="px-3.5 py-2 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-bold rounded-2xl border border-neutral-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-md"
         >
           <Globe className="w-3.5 h-3.5 text-amber-400" />
           <span>{lang === 'en' ? 'አማርኛ' : 'English'}</span>
@@ -111,7 +248,7 @@ export default function ViavelaLogin({
       </div>
 
       {/* Main Container */}
-      <div className="w-full max-w-md bg-neutral-900/90 backdrop-blur-xl border border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 relative z-10 animate-fade-in my-8">
+      <div className="w-full max-w-lg bg-neutral-900/95 backdrop-blur-xl border border-neutral-800 rounded-[32px] p-6 sm:p-8 shadow-2xl space-y-6 relative z-10 animate-fade-in my-8">
         
         {/* Brand Header */}
         <div className="text-center space-y-2">
@@ -127,30 +264,30 @@ export default function ViavelaLogin({
         </div>
 
         {/* Portal Mode Tabs */}
-        <div className="grid grid-cols-2 p-1 bg-neutral-950 rounded-2xl border border-neutral-800 text-xs font-bold">
+        <div className="grid grid-cols-2 p-1.5 bg-neutral-950 rounded-2xl border border-neutral-800 text-xs font-bold">
           <button
             type="button"
             onClick={() => setAuthMode('superadmin')}
-            className={`py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
               authMode === 'superadmin' 
                 ? 'bg-amber-500 text-neutral-950 shadow-md font-black' 
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
-            <ShieldCheck className="w-3.5 h-3.5" />
+            <ShieldCheck className="w-4 h-4" />
             <span>Super Admin</span>
           </button>
 
           <button
             type="button"
             onClick={() => setAuthMode('salons')}
-            className={`py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
               authMode === 'salons' 
                 ? 'bg-amber-500 text-neutral-950 shadow-md font-black' 
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
-            <Building2 className="w-3.5 h-3.5" />
+            <Building2 className="w-4 h-4" />
             <span>Salons Portal</span>
           </button>
         </div>
@@ -167,8 +304,8 @@ export default function ViavelaLogin({
                 <input
                   type="text"
                   required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  value={superUsername}
+                  onChange={(e) => setSuperUsername(e.target.value)}
                   placeholder="e.g. Admin1"
                   className="w-full pl-10 pr-4 py-2.5 bg-neutral-950/80 border border-neutral-800 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500 font-medium transition-colors"
                 />
@@ -182,110 +319,158 @@ export default function ViavelaLogin({
               <div className="relative">
                 <Lock className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
-                  type={showPassword ? 'text' : 'password'}
+                  type={showSuperPassword ? 'text' : 'password'}
                   required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={superPassword}
+                  onChange={(e) => setSuperPassword(e.target.value)}
                   placeholder="••••••••"
                   className="w-full pl-10 pr-10 py-2.5 bg-neutral-950/80 border border-neutral-800 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500 font-mono font-medium transition-colors"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => setShowSuperPassword(!showSuperPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 p-1"
                 >
-                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {showSuperPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
 
-            {loginError && (
+            {superError && (
               <div className="p-3 bg-red-950/50 border border-red-800/80 rounded-xl text-red-300 text-xs font-medium text-center animate-fade-in">
-                ⚠️ {loginError}
+                ⚠️ {superError}
               </div>
             )}
 
             <button
               type="submit"
-              disabled={isLoggingIn}
-              className="w-full py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-neutral-950 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer ios-active-scale disabled:opacity-50 mt-1 flex items-center justify-center gap-1.5"
+              disabled={isSuperLoggingIn}
+              className="w-full py-3.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-neutral-950 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer ios-active-scale disabled:opacity-50 mt-1 flex items-center justify-center gap-1.5"
             >
               <ShieldCheck className="w-4 h-4" />
-              <span>{isLoggingIn ? 'Authenticating...' : 'Sign In as Super Admin'}</span>
+              <span>{isSuperLoggingIn ? 'Authenticating...' : 'Sign In as Super Admin'}</span>
             </button>
 
             {/* Credential Guide Note */}
-            <div className="p-2.5 bg-neutral-950/60 rounded-xl border border-neutral-800 text-[11px] text-neutral-400">
-              <span className="font-bold text-amber-400 block">Super Admin Sign-In Credentials</span>
-              <span className="font-mono text-[10px] text-neutral-400">Username: <b className="text-white">Admin1</b> &nbsp;|&nbsp; Password: <b className="text-white">Admin1</b></span>
+            <div className="p-3 bg-neutral-950/60 rounded-xl border border-neutral-800 text-[11px] text-neutral-400">
+              <span className="font-bold text-amber-400 block mb-0.5">Super Admin Platform Credentials:</span>
+              <span className="font-mono text-[10.5px] text-neutral-300">Username: <b className="text-white">Admin1</b> &nbsp;|&nbsp; Password: <b className="text-white">Admin1</b></span>
             </div>
           </form>
         )}
 
-        {/* TAB 2: Salon Dedicated Portals Gateway */}
+        {/* TAB 2: Salon Staff Direct Sign-In Form with Salon Selector */}
         {authMode === 'salons' && (
-          <div className="space-y-3.5 animate-fade-in">
-            <p className="text-xs text-neutral-300 font-medium">
-              Select a beauty salon to open its dedicated administrative and staff sign-in section:
-            </p>
-
-            {/* Kaldas Beauty Salon Primary Gateway Card */}
-            <div 
-              onClick={() => onOpenSalonLogin(DEFAULT_ORG_ID, 'Kaldas Beauty Salon')}
-              className="p-4 bg-gradient-to-r from-neutral-900 via-neutral-850 to-neutral-900 hover:from-neutral-800 hover:to-neutral-800 border-2 border-amber-500/50 hover:border-amber-400 rounded-2xl cursor-pointer transition-all shadow-md group flex items-center justify-between"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500 text-neutral-950 flex items-center justify-center font-black text-base shadow-xs shrink-0">
-                  K
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="text-sm font-black text-white group-hover:text-amber-300 transition-colors">
-                      Kaldas Beauty Salon
-                    </h3>
-                    <span className="text-[9px] font-bold uppercase bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30">
-                      Flagship
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-neutral-400 font-medium">
-                    Owner: Sara Tekle • 1-Year Active Subscription
-                  </p>
-                </div>
-              </div>
-              <ArrowRight className="w-4 h-4 text-amber-400 group-hover:translate-x-1 transition-transform shrink-0" />
+          <form onSubmit={handleSalonStaffSubmit} className="space-y-4 animate-fade-in">
+            {/* Salon Selection Dropdown / Carousel */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-neutral-300">
+                {lang === 'am' ? 'የሳሎን ስም ይምረጡ' : 'Select Beauty Salon'}
+              </label>
+              <select
+                value={selectedSalonId}
+                onChange={(e) => {
+                  setSelectedSalonId(e.target.value);
+                  setSalonError('');
+                }}
+                className="w-full px-3.5 py-2.5 bg-neutral-950 border border-neutral-750 text-white rounded-xl text-xs font-bold focus:outline-none focus:border-amber-500 cursor-pointer"
+              >
+                {displayOrgs.map(org => (
+                  <option key={org.id} value={org.id}>
+                    {org.salonName} ({org.city || 'Addis Ababa'} - {org.status === 'active' ? 'Active' : 'Trial'})
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* Other Registered Salons (if created) */}
-            {organizations.filter(o => o.id !== DEFAULT_ORG_ID).length > 0 && (
-              <div className="space-y-2 pt-2 border-t border-neutral-800 max-h-56 overflow-y-auto pr-1">
-                <span className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider block">
-                  Other Registered Salons
-                </span>
-                {organizations.filter(o => o.id !== DEFAULT_ORG_ID).map(org => (
-                  <div
-                    key={org.id}
-                    onClick={() => onOpenSalonLogin(org.id, org.salonName, org.logoUrl)}
-                    className="p-3.5 bg-neutral-950 hover:bg-neutral-850 border border-neutral-800 hover:border-amber-500/40 rounded-2xl cursor-pointer transition-all flex items-center justify-between group"
-                  >
-                    <div className="flex items-center gap-3">
-                      {org.logoUrl ? (
-                        <img src={org.logoUrl} alt={org.salonName} className="w-9 h-9 rounded-xl object-cover border border-neutral-700 shrink-0" />
-                      ) : (
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-neutral-950 flex items-center justify-center font-black text-sm shrink-0">
-                          {org.salonName ? org.salonName[0].toUpperCase() : 'S'}
-                        </div>
-                      )}
-                      <div>
-                        <h4 className="text-xs font-black text-white group-hover:text-amber-300 transition-colors">{org.salonName}</h4>
-                        <p className="text-[10px] text-neutral-400 font-medium">Owner: {org.ownerName} • {org.city}</p>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-3.5 h-3.5 text-neutral-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
-                  </div>
-                ))}
+            {/* Active Selected Salon Pill Card */}
+            <div className="p-3 bg-neutral-950/80 rounded-2xl border border-neutral-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-amber-500 text-neutral-950 flex items-center justify-center font-black text-sm shrink-0">
+                  {activeSelectedSalon.salonName[0].toUpperCase()}
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-white">{activeSelectedSalon.salonName}</h4>
+                  <p className="text-[10px] text-neutral-400">Owner: {activeSelectedSalon.ownerName} • {activeSelectedSalon.city}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onOpenSalonLogin(activeSelectedSalon.id, activeSelectedSalon.salonName, activeSelectedSalon.logoUrl)}
+                className="text-[10px] text-amber-400 hover:underline font-bold"
+              >
+                Full Screen Branded Portal →
+              </button>
+            </div>
+
+            {/* Username input */}
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-neutral-300">
+                {lang === 'am' ? 'የሰራተኛ ወይም የአድሚን ተጠቃሚ ስም' : 'Staff / Admin Username'}
+              </label>
+              <div className="relative">
+                <User className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  required
+                  value={salonUsername}
+                  onChange={(e) => setSalonUsername(e.target.value)}
+                  placeholder={selectedSalonId === DEFAULT_ORG_ID ? 'e.g. Sara or Admin1 or Cashier1' : 'e.g. Owner or Cashier1'}
+                  className="w-full pl-10 pr-4 py-2.5 bg-neutral-950/80 border border-neutral-800 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500 font-medium transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Password input */}
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-neutral-300">
+                {lang === 'am' ? 'የይለፍ ቃል' : 'Password'}
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type={showSalonPassword ? 'text' : 'password'}
+                  required
+                  value={salonPassword}
+                  onChange={(e) => setSalonPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-10 pr-10 py-2.5 bg-neutral-950/80 border border-neutral-800 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500 font-mono font-medium transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSalonPassword(!showSalonPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 p-1"
+                >
+                  {showSalonPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            {salonError && (
+              <div className="p-3 bg-red-950/50 border border-red-800/80 rounded-xl text-red-300 text-xs font-medium text-center animate-fade-in">
+                ⚠️ {salonError}
               </div>
             )}
-          </div>
+
+            <button
+              type="submit"
+              disabled={isSalonLoggingIn}
+              className="w-full py-3.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-neutral-950 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer ios-active-scale disabled:opacity-50 mt-1 flex items-center justify-center gap-1.5"
+            >
+              <Building2 className="w-4 h-4" />
+              <span>{isSalonLoggingIn ? 'Signing In...' : `Sign In to ${activeSelectedSalon.salonName}`}</span>
+            </button>
+
+            {/* Credential Reference Note */}
+            <div className="p-3 bg-neutral-950/60 rounded-xl border border-neutral-800 text-[11px] text-neutral-400 space-y-1">
+              <span className="font-bold text-amber-400 block">Default Sign-In Accounts for this Salon:</span>
+              <p className="text-[10px] text-neutral-400">
+                • <b>Owner / Admin</b>: User: <code className="text-white bg-neutral-900 px-1 py-0.5 rounded">{selectedSalonId === DEFAULT_ORG_ID ? 'Sara' : 'Owner'}</code> | Pass: <code className="text-white bg-neutral-900 px-1 py-0.5 rounded">Admin1</code><br />
+                • <b>Cashier Desk</b>: User: <code className="text-white bg-neutral-900 px-1 py-0.5 rounded">Cashier1</code> | Pass: <code className="text-white bg-neutral-900 px-1 py-0.5 rounded">Cashier123!</code><br />
+                • <b>Walk-in / Queue</b>: User: <code className="text-white bg-neutral-900 px-1 py-0.5 rounded">Walkin1</code> | Pass: <code className="text-white bg-neutral-900 px-1 py-0.5 rounded">Walkin123!</code>
+              </p>
+            </div>
+          </form>
         )}
 
         {/* Footer info */}

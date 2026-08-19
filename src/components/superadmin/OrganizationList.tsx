@@ -22,6 +22,7 @@ import {
   CheckCircle2, 
   AlertTriangle,
   UserCheck,
+  KeyRound,
   Plus
 } from 'lucide-react';
 
@@ -30,6 +31,7 @@ interface OrganizationListProps {
   onSelectOrg: (org: Organization) => void;
   onOpenCRM: (org: Organization) => void;
   onManageSub: (org: Organization) => void;
+  onResetPassword?: (org: Organization) => void;
   onSuspend: (org: Organization) => void;
   onReactivate: (org: Organization) => void;
   onDelete: (org: Organization) => void;
@@ -41,6 +43,7 @@ export default function OrganizationList({
   onSelectOrg,
   onOpenCRM,
   onManageSub,
+  onResetPassword,
   onSuspend,
   onReactivate,
   onDelete,
@@ -238,6 +241,16 @@ export default function OrganizationList({
                             <ExternalLink className="w-3 h-3 text-amber-400" />
                             <span>Open CRM</span>
                           </button>
+
+                          {onResetPassword && (
+                            <button
+                              onClick={() => onResetPassword(org)}
+                              className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-lg text-xs transition-colors border border-amber-200 cursor-pointer"
+                              title="Reset Owner & Staff Password"
+                            >
+                              <KeyRound className="w-3.5 h-3.5 text-amber-700" />
+                            </button>
+                          )}
 
                           <button
                             onClick={() => onSelectOrg(org)}

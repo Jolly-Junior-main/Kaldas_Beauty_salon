@@ -24,6 +24,7 @@ import {
   MapPin, 
   CheckCircle2, 
   AlertTriangle,
+  KeyRound,
   Plus
 } from 'lucide-react';
 
@@ -31,9 +32,10 @@ interface OrganizationDetailViewProps {
   organization: Organization;
   onBack: () => void;
   onOpenCRM: (org: Organization) => void;
+  onResetPassword?: (org: Organization) => void;
 }
 
-export default function OrganizationDetailView({ organization, onBack, onOpenCRM }: OrganizationDetailViewProps) {
+export default function OrganizationDetailView({ organization, onBack, onOpenCRM, onResetPassword }: OrganizationDetailViewProps) {
   const [org, setOrg] = useState<Organization>(organization);
   const [payments, setPayments] = useState<SaaSOrganizationPayment[]>([]);
   const [customerCount, setCustomerCount] = useState<number>(0);
@@ -161,6 +163,16 @@ export default function OrganizationDetailView({ organization, onBack, onOpenCRM
         </div>
 
         <div className="flex items-center gap-2">
+          {onResetPassword && (
+            <button
+              onClick={() => onResetPassword(org)}
+              className="px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-amber-700" />
+              <span>Reset Credentials</span>
+            </button>
+          )}
+
           <button
             onClick={() => onOpenCRM(org)}
             className="px-4 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer ios-active-scale"
