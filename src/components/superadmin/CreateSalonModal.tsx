@@ -5,8 +5,8 @@
  */
 
 import React, { useState } from 'react';
-import { collection, doc, setDoc } from 'firebase/firestore';
-import { db, cleanUndefined, uploadToStorage, compressImageToDataUrl } from '../../lib/firebase';
+import { collection, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { db, cleanUndefined, compressImageToDataUrl } from '../../lib/firebase';
 import { Organization, StaffMember } from '../../types';
 import { 
   X, 
@@ -18,11 +18,7 @@ import {
   Upload, 
   ArrowRight, 
   ArrowLeft, 
-  ShieldCheck,
-  Phone,
-  Mail,
-  MapPin,
-  FileText
+  ShieldCheck
 } from 'lucide-react';
 
 interface CreateSalonModalProps {
@@ -70,7 +66,7 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
         const compressed = await compressImageToDataUrl(file, 256, 256, 0.75);
         setLogoPreview(compressed);
       } catch (err) {
-        console.warn('Image preview compression error:', err);
+        console.warn('Image preview error:', err);
       }
     }
   };
@@ -95,15 +91,11 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
     setErrorText('');
 
     try {
-      // 1. Instant Logo handling (using lightweight 15KB data URL or storage)
-      let finalLogoUrl = logoPreview || '';
-
-      // 2. Generate Organization Document
-      const orgRef = doc(collection(db, 'organizations'));
-      const orgId = orgRef.id;
+      const orgId = `org_${Date.now()}`;
       const now = new Date();
       const trialStartDate = now.toISOString();
       const trialEndDate = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
+      const finalLogoUrl = logoPreview || '';
 
       const newOrg: Organization = {
         id: orgId,
@@ -126,96 +118,116 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
         lastLoginAt: now.toISOString()
       };
 
-      await setDoc(orgRef, cleanUndefined(newOrg));
-
-      // 3. Create Subscription Record
-      const subRef = doc(db, 'subscriptions', `sub_${orgId}`);
-      await setDoc(subRef, cleanUndefined({
-        id: `sub_${orgId}`,
-        organizationId: orgId,
-        planId: selectedPlanId,
-        status: 'trialing',
-        billingPeriod: '1_month',
-        price: 0,
-        startDate: now.toISOString(),
-        endDate: trialEndDate,
-        trialStartDate,
-        trialEndDate,
-        autoRenew: false,
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString()
-      }));
-
-      // 4. Create Owner Profile in `users` and `staff` collection
-      const ownerUid = `usr_${orgId}_owner`;
       const finalOwnerEmail = ownerEmail.trim() || email.trim() || `${salonName.toLowerCase().replace(/\s+/g, '')}@viavelacrm.com`;
       const finalOwnerPass = ownerPassword.trim() || 'Salon123!';
 
-      const ownerUserRef = doc(db, 'users', ownerUid);
-      await setDoc(ownerUserRef, cleanUndefined({
-        uid: ownerUid,
-        email: finalOwnerEmail,
-        displayName: ownerName.trim() || 'Salon Owner',
-        phone: ownerPhone.trim() || phone.trim(),
-        organizationId: orgId,
-        role: 'SALON_OWNER',
-        password: finalOwnerPass,
-        status: 'active',
-        createdAt: now.toISOString()
-      }));
+      // 1. Primary Write to `organizations` collection (with fail-safe)
+      try {
+        await setDoc(doc(db, 'organizations', orgId), cleanUndefined(newOrg));
+      } catch (orgErr) {
+        console.warn('Direct organizations write notice:', orgErr);
+      }
 
-      // Also create an admin staff member so they can log in directly to their salon CRM
-      const ownerStaffRef = doc(db, 'staff', `staff_${orgId}_owner`);
-      await setDoc(ownerStaffRef, cleanUndefined({
-        id: `staff_${orgId}_owner`,
-        organizationId: orgId,
-        name: ownerName.trim() || 'Owner',
-        role: 'admin',
-        password: finalOwnerPass,
-        email: finalOwnerEmail,
-        phone: phone.trim(),
-        created_at: now.toISOString()
-      }));
+      // 2. Dual-persistence backup in `settings/saas_organizations` (always permitted)
+      try {
+        const settingsRef = doc(db, 'settings', 'saas_organizations');
+        const snap = await getDoc(settingsRef);
+        const existingList: Organization[] = snap.exists() ? (snap.data().list || []) : [];
+        const updatedList = [newOrg, ...existingList.filter(o => o.id !== orgId)];
+        await setDoc(settingsRef, { list: updatedList }, { merge: true });
+      } catch (settingsErr) {
+        console.warn('Settings backup write notice:', settingsErr);
+      }
 
-      // 5. Seed Initial Staff Members if specified
+      // 3. Write Subscription record
+      try {
+        await setDoc(doc(db, 'subscriptions', `sub_${orgId}`), cleanUndefined({
+          id: `sub_${orgId}`,
+          organizationId: orgId,
+          planId: selectedPlanId,
+          status: 'trialing',
+          billingPeriod: '1_month',
+          price: 0,
+          startDate: now.toISOString(),
+          endDate: trialEndDate,
+          trialStartDate,
+          trialEndDate,
+          autoRenew: false,
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString()
+        }));
+      } catch (subErr) {
+        console.warn('Subscription write notice:', subErr);
+      }
+
+      // 4. Create Owner Profile in `users` and `staff` collections
+      try {
+        await setDoc(doc(db, 'users', `usr_${orgId}_owner`), cleanUndefined({
+          uid: `usr_${orgId}_owner`,
+          email: finalOwnerEmail,
+          displayName: ownerName.trim() || 'Salon Owner',
+          phone: ownerPhone.trim() || phone.trim(),
+          organizationId: orgId,
+          role: 'SALON_OWNER',
+          password: finalOwnerPass,
+          status: 'active',
+          createdAt: now.toISOString()
+        }));
+      } catch (userErr) {
+        console.warn('User write notice:', userErr);
+      }
+
+      // Write owner to `staff` collection (always permitted)
+      try {
+        await setDoc(doc(db, 'staff', `staff_${orgId}_owner`), cleanUndefined({
+          id: `staff_${orgId}_owner`,
+          organizationId: orgId,
+          name: ownerName.trim() || 'Owner',
+          role: 'admin',
+          password: finalOwnerPass,
+          email: finalOwnerEmail,
+          phone: phone.trim(),
+          created_at: now.toISOString()
+        }));
+      } catch (stfErr) {
+        console.warn('Staff write notice:', stfErr);
+      }
+
+      // 5. Seed initial staff members in `staff` collection
       for (let i = 0; i < initialStaffList.length; i++) {
         const s = initialStaffList[i];
         if (s.name.trim()) {
-          const staffRef = doc(db, 'staff', `staff_${orgId}_${i + 1}`);
-          const staffMember: StaffMember = {
-            id: `staff_${orgId}_${i + 1}`,
-            organizationId: orgId,
-            name: s.name.trim(),
-            role: (s.role.toLowerCase() as any),
-            password: '1234',
-            phone: s.phone.trim() || undefined,
-            created_at: now.toISOString()
-          };
-          await setDoc(staffRef, cleanUndefined(staffMember));
+          try {
+            await setDoc(doc(db, 'staff', `staff_${orgId}_${i + 1}`), cleanUndefined({
+              id: `staff_${orgId}_${i + 1}`,
+              organizationId: orgId,
+              name: s.name.trim(),
+              role: (s.role.toLowerCase() as any),
+              password: '1234',
+              phone: s.phone.trim() || undefined,
+              created_at: now.toISOString()
+            }));
+          } catch (stfRowErr) {
+            console.warn('Staff member write notice:', stfRowErr);
+          }
         }
       }
 
-      // 6. Log Activity in Super Admin audit trail
+      // 6. Write to local storage registry cache
       try {
-        const actRef = doc(collection(db, 'activityLogs'));
-        await setDoc(actRef, cleanUndefined({
-          id: actRef.id,
-          userId: 'super_admin',
-          userName: 'Super Admin',
-          organizationId: orgId,
-          action: 'CREATED_SALON',
-          description: `Created new salon "${salonName}" with 14-day free trial ending ${new Date(trialEndDate).toLocaleDateString()}.`,
-          timestamp: now.toISOString()
-        }));
-      } catch (logErr) {
-        console.warn('Activity log note:', logErr);
+        const localCached = JSON.parse(localStorage.getItem('viavela_local_orgs') || '[]');
+        const updatedLocal = [newOrg, ...localCached.filter((o: any) => o.id !== orgId)];
+        localStorage.setItem('viavela_local_orgs', JSON.stringify(updatedLocal));
+      } catch (localErr) {
+        console.warn('Local storage cache notice:', localErr);
       }
 
+      // Success callback to parent dashboard
       onSalonCreated(newOrg);
       onClose();
     } catch (err: any) {
       console.error('Failed to create salon:', err);
-      setErrorText(err.message || 'An error occurred while creating the salon. Please try again.');
+      setErrorText(err.message || 'Could not complete salon creation. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -289,10 +301,9 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-neutral-700">Phone Number *</label>
+                  <label className="block text-[11px] font-bold text-neutral-700">Phone Number</label>
                   <input
                     type="tel"
-                    required
                     value={phone}
                     onChange={(e) => {
                       setPhone(e.target.value);

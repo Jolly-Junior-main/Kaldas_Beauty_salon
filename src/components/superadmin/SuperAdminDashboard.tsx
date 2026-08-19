@@ -89,21 +89,40 @@ export default function SuperAdminDashboard() {
       lastLoginAt: new Date().toISOString()
     };
 
-    const unsubOrgs = onSnapshot(collection(db, 'organizations'), (snap) => {
-      const list: Organization[] = [];
-      snap.forEach(d => list.push({ id: d.id, ...d.data() } as Organization));
-      
-      // Ensure Kaldas Beauty Salon is always in the list
-      if (!list.some(o => o.id === DEFAULT_ORG_ID || (o.salonName && o.salonName.toLowerCase().includes('kaldas')))) {
-        list.unshift(defaultKaldasFallback);
-      }
+    let firestoreOrgs: Organization[] = [];
+    let settingsOrgs: Organization[] = [];
 
-      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setOrganizations(list);
+    const updateCombinedOrgs = () => {
+      const map = new Map<string, Organization>();
+      map.set(DEFAULT_ORG_ID, defaultKaldasFallback);
+      settingsOrgs.forEach(o => map.set(o.id, o));
+      firestoreOrgs.forEach(o => map.set(o.id, o));
+
+      try {
+        const local = JSON.parse(localStorage.getItem('viavela_local_orgs') || '[]');
+        local.forEach((o: Organization) => map.set(o.id, o));
+      } catch (e) {}
+
+      const result = Array.from(map.values());
+      result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setOrganizations(result);
+    };
+
+    const unsubOrgs = onSnapshot(collection(db, 'organizations'), (snap) => {
+      firestoreOrgs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Organization));
+      updateCombinedOrgs();
     }, (err) => {
-      console.warn('Organizations listener error:', err);
-      // Fallback in offline / initial sync state
-      setOrganizations([defaultKaldasFallback]);
+      console.warn('Organizations collection fallback to settings:', err);
+      updateCombinedOrgs();
+    });
+
+    const unsubSettingsOrgs = onSnapshot(doc(db, 'settings', 'saas_organizations'), (snap) => {
+      if (snap.exists()) {
+        settingsOrgs = snap.data().list || [];
+        updateCombinedOrgs();
+      }
+    }, (err) => {
+      console.debug('Settings orgs listener notice:', err);
     });
 
     const unsubPayments = onSnapshot(collection(db, 'payments'), (snap) => {

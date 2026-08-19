@@ -1,91 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Super Admin & SaaS Platform Collections
-    match /organizations/{orgId} {
-      allow read, write: if true;
-    }
-
-    match /subscriptions/{subId} {
-      allow read, write: if true;
-    }
-
-    match /subscriptionPlans/{planId} {
-      allow read, write: if true;
-    }
-
-    match /payments/{paymentId} {
-      allow read, write: if true;
-    }
-
-    match /advertisements/{adId} {
-      allow read, write: if true;
-    }
-
-    match /adImpressions/{impId} {
-      allow read, write: if true;
-    }
-
-    match /adClicks/{clickId} {
-      allow read, write: if true;
-    }
-
-    match /activityLogs/{logId} {
-      allow read, write: if true;
-    }
-
-    match /users/{userId} {
-      allow read, write: if true;
-    }
-
-    // Salon Domain Collections
-    match /staff/{staffId} {
-      allow read, write: if true;
-    }
-
-    match /services/{serviceId} {
-      allow read, write: if true;
-    }
-
-    match /customers/{customerId} {
-      allow read, write: if true;
-    }
-
-    match /artists/{artistId} {
-      allow read, write: if true;
-    }
-
-    match /visits/{visitId} {
-      allow read, write: if true;
-    }
-
-    match /birthday_wishes/{wishId} {
-      allow read, write: if true;
-    }
-
-    match /settings/{settingId} {
-      allow read, write: if true;
-    }
-
-    match /sms_logs/{logId} {
-      allow read, write: if true;
-    }
-
-    match /queue_entries/{entryId} {
-      allow read, write: if true;
-    }
-
-    match /inventory_products/{productId} {
-      allow read, write: if true;
-    }
-
-    match /active_checkouts/{checkoutId} {
-      allow read, write: if true;
-    }
-
-    match /inventory_logs/{logId} {
+    // Global access for all collections and documents
+    match /{document=**} {
       allow read, write: if true;
     }
   }
 }
-
