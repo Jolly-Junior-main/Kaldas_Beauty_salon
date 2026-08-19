@@ -29,7 +29,7 @@ interface ViavelaLoginProps {
   lang: 'en' | 'am';
   setLang: (l: 'en' | 'am') => void;
   onLoginSuccess: () => void;
-  onOpenSalonLogin: (salonId: string, salonName: string) => void;
+  onOpenSalonLogin: (salonId: string, salonName: string, logoUrl?: string) => void;
 }
 
 export default function ViavelaLogin({ 
@@ -81,7 +81,7 @@ export default function ViavelaLogin({
     );
     if (matchedOrg) {
       setIsLoggingIn(false);
-      onOpenSalonLogin(matchedOrg.id, matchedOrg.salonName);
+      onOpenSalonLogin(matchedOrg.id, matchedOrg.salonName, matchedOrg.logoUrl);
       return;
     }
 
@@ -271,26 +271,30 @@ export default function ViavelaLogin({
 
             {/* Other Registered Salons (if created) */}
             {organizations.filter(o => o.id !== DEFAULT_ORG_ID).length > 0 && (
-              <div className="space-y-2 pt-2 border-t border-neutral-800 max-h-48 overflow-y-auto pr-1">
+              <div className="space-y-2 pt-2 border-t border-neutral-800 max-h-56 overflow-y-auto pr-1">
                 <span className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider block">
                   Other Registered Salons
                 </span>
                 {organizations.filter(o => o.id !== DEFAULT_ORG_ID).map(org => (
                   <div
                     key={org.id}
-                    onClick={() => onOpenSalonLogin(org.id, org.salonName)}
-                    className="p-3 bg-neutral-950 hover:bg-neutral-850 border border-neutral-800 rounded-xl cursor-pointer transition-all flex items-center justify-between"
+                    onClick={() => onOpenSalonLogin(org.id, org.salonName, org.logoUrl)}
+                    className="p-3.5 bg-neutral-950 hover:bg-neutral-850 border border-neutral-800 hover:border-amber-500/40 rounded-2xl cursor-pointer transition-all flex items-center justify-between group"
                   >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-neutral-800 text-white flex items-center justify-center font-bold text-xs">
-                        {org.salonName ? org.salonName[0].toUpperCase() : 'S'}
-                      </div>
+                    <div className="flex items-center gap-3">
+                      {org.logoUrl ? (
+                        <img src={org.logoUrl} alt={org.salonName} className="w-9 h-9 rounded-xl object-cover border border-neutral-700 shrink-0" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-neutral-950 flex items-center justify-center font-black text-sm shrink-0">
+                          {org.salonName ? org.salonName[0].toUpperCase() : 'S'}
+                        </div>
+                      )}
                       <div>
-                        <h4 className="text-xs font-bold text-white">{org.salonName}</h4>
-                        <p className="text-[10px] text-neutral-500">{org.ownerName} • {org.city}</p>
+                        <h4 className="text-xs font-black text-white group-hover:text-amber-300 transition-colors">{org.salonName}</h4>
+                        <p className="text-[10px] text-neutral-400 font-medium">Owner: {org.ownerName} • {org.city}</p>
                       </div>
                     </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-neutral-500" />
+                    <ArrowRight className="w-3.5 h-3.5 text-neutral-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
                   </div>
                 ))}
               </div>

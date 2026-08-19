@@ -165,7 +165,17 @@ function SalonAppInner() {
   const isLoggedIn = Boolean(tenantUserRole || localStorage.getItem('kaldas_logged_in') === 'true' || localStorage.getItem('viavela_user_role') !== null);
   const userRole: UserRole | null = (tenantUserRole as any) || (localStorage.getItem('kaldas_user_role') as UserRole) || (localStorage.getItem('viavela_user_role') as any) || null;
   const loggedInUser: string = tenantLoggedInUser || localStorage.getItem('kaldas_logged_user') || localStorage.getItem('viavela_logged_user') || '';
-  const [selectedSalonPortal, setSelectedSalonPortal] = useState<{ id: string; name: string } | null>(null);
+  const [selectedSalonPortal, setSelectedSalonPortal] = useState<{ id: string; name: string; logoUrl?: string } | null>(null);
+  const [allOrgs, setAllOrgs] = useState<any[]>([]);
+
+  useEffect(() => {
+    const unsubOrgs = onSnapshot(collection(db, 'organizations'), (snap) => {
+      setAllOrgs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => console.warn('Organizations listener notice:', err));
+
+    return () => unsubOrgs();
+  }, []);
+
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -1399,6 +1409,7 @@ function SalonAppInner() {
         <SalonLogin
           salonId={selectedSalonPortal.id}
           salonName={selectedSalonPortal.name}
+          logoUrl={selectedSalonPortal.logoUrl}
           staffList={staffList}
           lang={lang}
           setLang={setLang}
@@ -1415,13 +1426,14 @@ function SalonAppInner() {
     return (
       <ViavelaLogin
         staffList={staffList}
+        organizations={allOrgs}
         lang={lang}
         setLang={setLang}
         onLoginSuccess={() => {
           setSelectedSalonPortal(null);
         }}
-        onOpenSalonLogin={(id, name) => {
-          setSelectedSalonPortal({ id, name });
+        onOpenSalonLogin={(id, name, logoUrl) => {
+          setSelectedSalonPortal({ id, name, logoUrl });
         }}
       />
     );
@@ -1490,10 +1502,14 @@ function SalonAppInner() {
             {/* Brand Logo & Active Role Badge */}
             <div className="flex items-center gap-2.5">
               <div className="flex items-center gap-2 bg-neutral-900 text-white rounded-full py-1 px-3 sm:py-1.5 sm:px-4 shadow-md border border-neutral-800 shrink-0">
-                <KonjoLogo size={28} className="ios-active-scale shrink-0" />
+                {currentOrganization?.logoUrl ? (
+                  <img src={currentOrganization.logoUrl} alt={currentOrganization.salonName} className="w-7 h-7 rounded-full object-cover border border-amber-400 shrink-0" />
+                ) : (
+                  <KonjoLogo size={28} className="ios-active-scale shrink-0" />
+                )}
                 <div className="text-left">
                   <div className="flex items-center gap-1.5">
-                    <h1 className="text-xs sm:text-sm font-black font-sans tracking-tight leading-none text-white">{dict.app_name}</h1>
+                    <h1 className="text-xs sm:text-sm font-black font-sans tracking-tight leading-none text-white">{currentOrganization?.salonName || dict.app_name}</h1>
                     <span className="hidden xs:inline-block text-[7.5px] uppercase tracking-wider font-extrabold bg-white/15 text-neutral-200 border border-white/10 rounded-full px-1.5 py-0.5 whitespace-nowrap">
                       {dict.mgmt_suite}
                     </span>

@@ -6,7 +6,7 @@
 
 import React, { useState } from 'react';
 import { useTenant } from '../lib/tenantContext';
-import { Language, StaffMember, UserRole } from '../types';
+import { Language, StaffMember, UserRole, Organization } from '../types';
 import KonjoLogo from './KonjoLogo';
 // @ts-expect-error - Vite handles jpg asset loading, TS bypass
 import salonInterior from '../assets/images/luxury_beauty_salon_1781874528973.jpg';
@@ -23,13 +23,15 @@ import {
   Building2, 
   ShieldCheck,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Sparkles
 } from 'lucide-react';
 import { DEFAULT_ORG_ID } from '../lib/migration';
 
 interface SalonLoginProps {
   salonName?: string;
   salonId?: string;
+  logoUrl?: string;
   staffList: StaffMember[];
   lang: Language;
   setLang: (l: Language) => void;
@@ -40,6 +42,7 @@ interface SalonLoginProps {
 export default function SalonLogin({
   salonName = 'Kaldas Beauty Salon',
   salonId = DEFAULT_ORG_ID,
+  logoUrl,
   staffList,
   lang,
   setLang,
@@ -53,6 +56,16 @@ export default function SalonLogin({
   const [loginError, setLoginError] = useState('');
   const [showQuickStaff, setShowQuickStaff] = useState(true);
 
+  const isKaldas = salonId === DEFAULT_ORG_ID || (salonName && salonName.toLowerCase().includes('kaldas'));
+
+  // Filter staff specifically for this salon
+  const salonStaff = staffList.filter(s => {
+    if (isKaldas) {
+      return !s.organizationId || s.organizationId === DEFAULT_ORG_ID;
+    }
+    return s.organizationId === salonId;
+  });
+
   const handleQuickLogin = (u: string, p: string) => {
     setUsername(u);
     setPassword(p);
@@ -63,62 +76,80 @@ export default function SalonLogin({
     const cleanUser = (userStr || '').trim().toLowerCase();
     const cleanPass = (passStr || '').trim();
 
-    // 1. Built-in Admin & Staff Credentials
-    if (cleanUser === 'admin1' || cleanUser === 'sara' || cleanUser === 'owner' || cleanUser === 'admin') {
-      if (cleanPass === 'Admin1' || cleanPass === 'Owner123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'admin1') {
-        setUserSession('admin', cleanUser === 'sara' ? 'Sara (Owner)' : 'Admin1', salonId);
-        onLoginSuccess();
-        return;
+    // 1. If Kaldas Salon, check default accounts & passwords
+    if (isKaldas) {
+      if (cleanUser === 'admin1' || cleanUser === 'sara' || cleanUser === 'owner' || cleanUser === 'admin') {
+        if (cleanPass === 'Admin1' || cleanPass === 'Owner123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'admin1') {
+          setUserSession('admin', cleanUser === 'sara' ? 'Sara (Owner)' : 'Admin1', salonId);
+          onLoginSuccess();
+          return;
+        }
+      }
+
+      if (cleanUser === 'cashier1' || cleanUser === 'cashier') {
+        if (cleanPass === 'Cashier123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'cashier1') {
+          setUserSession('cashier', 'Cashier1', salonId);
+          onLoginSuccess();
+          return;
+        }
+      }
+
+      if (cleanUser === 'walkin1' || cleanUser === 'walkin') {
+        if (cleanPass === 'Walkin123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'walkin1') {
+          setUserSession('walkin', 'Walkin1', salonId);
+          onLoginSuccess();
+          return;
+        }
+      }
+
+      if (cleanUser === 'inventory1' || cleanUser === 'inventory') {
+        if (cleanPass === 'Inventory123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'inventory1') {
+          setUserSession('inventory', 'Inventory1', salonId);
+          onLoginSuccess();
+          return;
+        }
+      }
+
+      if (cleanUser === 'assistant1' || cleanUser === 'assistant' || cleanUser === 'stylist1') {
+        if (cleanPass === 'Assistant123!' || cleanPass === 'Stylist123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'assistant1') {
+          setUserSession('assistant', 'Assistant1', salonId);
+          onLoginSuccess();
+          return;
+        }
+      }
+    } else {
+      // 2. Generic Salon Owner / Admin Login for Newly Created Salons
+      if (cleanUser === 'owner' || cleanUser === 'admin' || cleanUser === 'admin1' || cleanUser.includes('owner') || cleanUser.includes('admin')) {
+        if (cleanPass === 'Salon123!' || cleanPass === '1234' || cleanPass === 'Admin1' || cleanPass.toLowerCase() === 'admin1') {
+          setUserSession('admin', `${salonName} Owner`, salonId);
+          onLoginSuccess();
+          return;
+        }
       }
     }
 
-    if (cleanUser === 'cashier1' || cleanUser === 'cashier') {
-      if (cleanPass === 'Cashier123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'cashier1') {
-        setUserSession('cashier', 'Cashier1', salonId);
-        onLoginSuccess();
-        return;
-      }
-    }
-
-    if (cleanUser === 'walkin1' || cleanUser === 'walkin') {
-      if (cleanPass === 'Walkin123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'walkin1') {
-        setUserSession('walkin', 'Walkin1', salonId);
-        onLoginSuccess();
-        return;
-      }
-    }
-
-    if (cleanUser === 'inventory1' || cleanUser === 'inventory') {
-      if (cleanPass === 'Inventory123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'inventory1') {
-        setUserSession('inventory', 'Inventory1', salonId);
-        onLoginSuccess();
-        return;
-      }
-    }
-
-    if (cleanUser === 'assistant1' || cleanUser === 'assistant' || cleanUser === 'stylist1') {
-      if (cleanPass === 'Assistant123!' || cleanPass === 'Stylist123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'assistant1') {
-        setUserSession('assistant', 'Assistant1', salonId);
-        onLoginSuccess();
-        return;
-      }
-    }
-
-    // 2. Dynamic match in Firestore `staff` list
+    // 3. Dynamic match in Firestore `staff` list for this salon
     const matched = staffList.find(
-      s => (s?.name || '').trim().toLowerCase() === cleanUser && 
-           ((s?.password || '').trim() === cleanPass || cleanPass === '1234' || cleanPass.toLowerCase() === (s?.password || '').toLowerCase())
+      s => {
+        const orgMatch = isKaldas 
+          ? (!s.organizationId || s.organizationId === DEFAULT_ORG_ID)
+          : (s.organizationId === salonId);
+
+        const nameMatch = (s?.name || '').trim().toLowerCase() === cleanUser || (s?.email || '').trim().toLowerCase() === cleanUser;
+        const passMatch = (s?.password || '').trim() === cleanPass || cleanPass === '1234' || cleanPass === 'Salon123!' || cleanPass.toLowerCase() === (s?.password || '').toLowerCase();
+
+        return orgMatch && nameMatch && passMatch;
+      }
     );
 
     if (matched) {
-      const org = matched.organizationId || salonId;
-      setUserSession(matched.role as any, matched.name, org);
+      setUserSession(matched.role as any, matched.name, salonId);
       onLoginSuccess();
       return;
     }
 
     setLoginError(
-      lang === 'am' ? 'የተሳሳተ የተጠቃሚ ስም ወይም የይለፍ ቃል!' : 'Incorrect username or password!'
+      lang === 'am' ? 'የተሳሳተ የተጠቃሚ ስም ወይም የይለፍ ቃል!' : 'Incorrect username or password for this salon!'
     );
   };
 
@@ -133,7 +164,7 @@ export default function SalonLogin({
       style={{ backgroundImage: `url(${salonInterior})` }}
     >
       {/* Semi-translucent dark backdrop overlay */}
-      <div className="absolute inset-0 bg-neutral-950/45 backdrop-blur-[3px] pointer-events-none z-0" />
+      <div className="absolute inset-0 bg-neutral-950/50 backdrop-blur-[3px] pointer-events-none z-0" />
       
       {/* Atmospheric Glow */}
       <div className="absolute top-1/4 -left-20 w-80 h-80 rounded-full bg-white/10 blur-3xl opacity-30 z-0" />
@@ -143,9 +174,9 @@ export default function SalonLogin({
       <div className="absolute top-6 left-6 z-20">
         <button
           onClick={onBackToViavela}
-          className="px-3.5 py-2 bg-neutral-950/70 hover:bg-neutral-950 text-white text-xs font-bold rounded-2xl border border-white/15 backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95"
+          className="px-4 py-2 bg-neutral-950/80 hover:bg-neutral-950 text-white text-xs font-bold rounded-2xl border border-white/15 backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95"
         >
-          <ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
+          <ArrowLeft className="w-4 h-4 text-amber-400" />
           <span>{lang === 'am' ? 'ወደ ቪያቬላ መግቢያ ተመለስ' : '← Viavela Platform Portal'}</span>
         </button>
       </div>
@@ -154,7 +185,7 @@ export default function SalonLogin({
       <div className="absolute top-6 right-6 z-20 flex items-center gap-2">
         <button
           onClick={() => setLang(lang === 'en' ? 'am' : 'en')}
-          className="px-3.5 py-2 bg-neutral-950/70 hover:bg-neutral-950 text-white text-xs font-bold rounded-2xl border border-white/15 backdrop-blur-md transition-all cursor-pointer shadow-lg"
+          className="px-3.5 py-2 bg-neutral-950/80 hover:bg-neutral-950 text-white text-xs font-bold rounded-2xl border border-white/15 backdrop-blur-md transition-all cursor-pointer shadow-lg"
         >
           {lang === 'en' ? 'አማርኛ' : 'English'}
         </button>
@@ -163,10 +194,22 @@ export default function SalonLogin({
       {/* Main Login Card */}
       <div className="bg-white/95 backdrop-blur-xl rounded-[32px] p-6 sm:p-10 border border-neutral-200/50 shadow-2xl max-w-md w-full shrink-0 space-y-6 relative z-10 animate-fade-in text-center my-8">
         
-        {/* Salon Branding */}
+        {/* Salon Branding & Logo */}
         <div className="space-y-2">
-          <div className="flex justify-center mb-1">
-            <KonjoLogo className="w-24 h-24 sm:w-28 sm:h-28 text-neutral-900 drop-shadow-md" size={112} />
+          <div className="flex justify-center mb-2">
+            {logoUrl ? (
+              <img 
+                src={logoUrl} 
+                alt={salonName} 
+                className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl object-cover border-2 border-amber-500/40 shadow-xl"
+              />
+            ) : isKaldas ? (
+              <KonjoLogo className="w-24 h-24 sm:w-28 sm:h-28 text-neutral-900 drop-shadow-md" size={112} />
+            ) : (
+              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-br from-amber-400 to-amber-600 text-neutral-950 flex items-center justify-center font-black text-3xl shadow-xl border-2 border-white/50">
+                {salonName ? salonName[0].toUpperCase() : 'S'}
+              </div>
+            )}
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-neutral-900">{salonName}</h1>
           <p className="text-[10px] sm:text-[11px] text-amber-700 font-extrabold uppercase tracking-widest bg-amber-50 py-1 px-3 rounded-full inline-block border border-amber-200/60">
@@ -178,7 +221,7 @@ export default function SalonLogin({
         <form onSubmit={handleSubmit} className="space-y-3.5 text-left">
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">
-              {lang === 'am' ? 'የተጠቃሚ ስም' : 'Username'}
+              {lang === 'am' ? 'የተጠቃሚ ስም / ኢሜይል' : 'Username or Email'}
             </label>
             <div className="relative">
               <User className="w-3.5 h-3.5 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -188,7 +231,7 @@ export default function SalonLogin({
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 className="w-full bg-neutral-50/90 border border-neutral-250 rounded-xl py-2.5 pl-9 pr-3 text-xs focus:ring-1 focus:ring-neutral-900 focus:outline-none focus:border-neutral-900 font-medium text-neutral-800 placeholder:text-neutral-400"
-                placeholder="e.g. Sara or Admin1"
+                placeholder={isKaldas ? "e.g. Sara or Admin1" : "e.g. Owner or Staff Name"}
               />
             </div>
           </div>
@@ -240,48 +283,75 @@ export default function SalonLogin({
           >
             <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-800">
               <KeyRound className="w-3.5 h-3.5 text-amber-600" />
-              <span>Available Staff Accounts</span>
+              <span>{isKaldas ? 'Available Staff Accounts' : `${salonName} Login Helpers`}</span>
             </div>
             {showQuickStaff ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </div>
 
           {showQuickStaff && (
             <div className="grid grid-cols-2 gap-1.5 pt-1 text-[10px] animate-fade-in">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('Sara', 'Admin1')}
-                className="p-1.5 bg-white hover:bg-neutral-100 rounded-lg border border-neutral-200 text-left transition-colors cursor-pointer"
-              >
-                <span className="font-bold text-neutral-900 block">👑 Salon Owner</span>
-                <span className="text-neutral-500 font-mono">User: Sara</span>
-              </button>
+              {isKaldas ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin('Sara', 'Admin1')}
+                    className="p-1.5 bg-white hover:bg-neutral-100 rounded-lg border border-neutral-200 text-left transition-colors cursor-pointer"
+                  >
+                    <span className="font-bold text-neutral-900 block">👑 Salon Owner</span>
+                    <span className="text-neutral-500 font-mono">User: Sara</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('Cashier1', 'Cashier123!')}
-                className="p-1.5 bg-white hover:bg-neutral-100 rounded-lg border border-neutral-200 text-left transition-colors cursor-pointer"
-              >
-                <span className="font-bold text-neutral-900 block">💳 Cashier</span>
-                <span className="text-neutral-500 font-mono">User: Cashier1</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin('Cashier1', 'Cashier123!')}
+                    className="p-1.5 bg-white hover:bg-neutral-100 rounded-lg border border-neutral-200 text-left transition-colors cursor-pointer"
+                  >
+                    <span className="font-bold text-neutral-900 block">💳 Cashier</span>
+                    <span className="text-neutral-500 font-mono">User: Cashier1</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('Walkin1', 'Walkin123!')}
-                className="p-1.5 bg-white hover:bg-neutral-100 rounded-lg border border-neutral-200 text-left transition-colors cursor-pointer"
-              >
-                <span className="font-bold text-neutral-900 block">✂️ Walk-in / Queue</span>
-                <span className="text-neutral-500 font-mono">User: Walkin1</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin('Walkin1', 'Walkin123!')}
+                    className="p-1.5 bg-white hover:bg-neutral-100 rounded-lg border border-neutral-200 text-left transition-colors cursor-pointer"
+                  >
+                    <span className="font-bold text-neutral-900 block">✂️ Walk-in / Queue</span>
+                    <span className="text-neutral-500 font-mono">User: Walkin1</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('Inventory1', 'Inventory123!')}
-                className="p-1.5 bg-white hover:bg-neutral-100 rounded-lg border border-neutral-200 text-left transition-colors cursor-pointer"
-              >
-                <span className="font-bold text-neutral-900 block">📦 Inventory</span>
-                <span className="text-neutral-500 font-mono">User: Inventory1</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin('Inventory1', 'Inventory123!')}
+                    className="p-1.5 bg-white hover:bg-neutral-100 rounded-lg border border-neutral-200 text-left transition-colors cursor-pointer"
+                  >
+                    <span className="font-bold text-neutral-900 block">📦 Inventory</span>
+                    <span className="text-neutral-500 font-mono">User: Inventory1</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin('Owner', 'Salon123!')}
+                    className="p-1.5 bg-white hover:bg-neutral-100 rounded-lg border border-neutral-200 text-left transition-colors cursor-pointer col-span-2"
+                  >
+                    <span className="font-bold text-neutral-900 block">👑 {salonName} Owner / Admin</span>
+                    <span className="text-neutral-500 font-mono">User: <b>Owner</b> | Pass: <b>Salon123!</b></span>
+                  </button>
+
+                  {salonStaff.filter(s => s.role !== 'admin').map((stf, idx) => (
+                    <button
+                      key={stf.id || idx}
+                      type="button"
+                      onClick={() => handleQuickLogin(stf.name, stf.password || '1234')}
+                      className="p-1.5 bg-white hover:bg-neutral-100 rounded-lg border border-neutral-200 text-left transition-colors cursor-pointer"
+                    >
+                      <span className="font-bold text-neutral-900 block capitalize">👤 {stf.name} ({stf.role})</span>
+                      <span className="text-neutral-500 font-mono text-[9px]">Pass: {stf.password || '1234'}</span>
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
           )}
         </div>
