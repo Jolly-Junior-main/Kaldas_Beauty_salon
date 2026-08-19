@@ -198,8 +198,8 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
         const s = initialStaffList[i];
         if (s.name.trim()) {
           try {
-            await setDoc(doc(db, 'staff', `staff_${orgId}_${i + 1}`), cleanUndefined({
-              id: `staff_${orgId}_${i + 1}`,
+            await setDoc(doc(db, 'staff', `staff_${orgId}_custom_${i + 1}`), cleanUndefined({
+              id: `staff_${orgId}_custom_${i + 1}`,
               organizationId: orgId,
               name: s.name.trim(),
               role: (s.role.toLowerCase() as any),
@@ -213,7 +213,150 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
         }
       }
 
-      // 6. Write to local storage registry cache
+      // 6. Seed Default Standard Operational Staff for New Salon
+      const standardStaff = [
+        { id: `staff_${orgId}_cashier`, organizationId: orgId, name: 'Cashier Desk', role: 'cashier', password: '1234', created_at: now.toISOString() },
+        { id: `staff_${orgId}_walkin`, organizationId: orgId, name: 'Reception & Queue', role: 'walkin', password: '1234', created_at: now.toISOString() },
+        { id: `staff_${orgId}_inventory`, organizationId: orgId, name: 'Inventory Manager', role: 'inventory', password: '1234', created_at: now.toISOString() },
+        { id: `staff_${orgId}_assistant`, organizationId: orgId, name: 'Salon Stylist', role: 'assistant', password: '1234', created_at: now.toISOString() },
+      ];
+
+      for (const stf of standardStaff) {
+        try {
+          await setDoc(doc(db, 'staff', stf.id), cleanUndefined(stf));
+        } catch (e) {
+          console.warn('Standard staff seed notice:', e);
+        }
+      }
+
+      // 7. Seed Complete Default Services Menu for New Salon
+      const defaultServices = [
+        { id: `srv_${orgId}_1`, name: 'Balayage & Highlights Coloring', category: 'Hair', defaultPrice: 1200, organizationId: orgId },
+        { id: `srv_${orgId}_2`, name: 'Classic Haircut & Blowdry Styling', category: 'Hair', defaultPrice: 400, organizationId: orgId },
+        { id: `srv_${orgId}_3`, name: 'Keratin Deep Smoothing Treatment', category: 'Hair', defaultPrice: 2500, organizationId: orgId },
+        { id: `srv_${orgId}_4`, name: 'Luxury Gel Manicure & Pedicure', category: 'Nails', defaultPrice: 650, organizationId: orgId },
+        { id: `srv_${orgId}_5`, name: 'Acrylic Nail Extensions & Nail Art', category: 'Nails', defaultPrice: 850, organizationId: orgId },
+        { id: `srv_${orgId}_6`, name: 'Signature Deep Cleansing Facial', category: 'Skin', defaultPrice: 950, organizationId: orgId },
+        { id: `srv_${orgId}_7`, name: 'Glow Collagen Face Refresh', category: 'Skin', defaultPrice: 500, organizationId: orgId },
+        { id: `srv_${orgId}_8`, name: 'Swedish Relaxation Massage (60 min)', category: 'Massage', defaultPrice: 1100, organizationId: orgId },
+        { id: `srv_${orgId}_9`, name: 'Aromatherapy Stress Relief Massage', category: 'Massage', defaultPrice: 1400, organizationId: orgId },
+      ];
+
+      for (const srv of defaultServices) {
+        try {
+          await setDoc(doc(db, 'services', srv.id), cleanUndefined(srv));
+        } catch (e) {
+          console.warn('Service seed notice:', e);
+        }
+      }
+
+      // 8. Seed Complete Default Inventory Products for New Salon
+      const defaultProducts = [
+        {
+          id: `inv_${orgId}_1`,
+          organizationId: orgId,
+          name: 'Professional Moisture Shampoo (1L)',
+          category_type: 'multiple_use',
+          category_label: 'Hair',
+          stock_quantity: 10,
+          unit_name: 'bottles',
+          low_stock_threshold: 3,
+          min_clients_per_unit: 8,
+          price_per_unit: 450,
+          created_at: now.toISOString()
+        },
+        {
+          id: `inv_${orgId}_2`,
+          organizationId: orgId,
+          name: 'Deep Keratin Treatment Cream (500g)',
+          category_type: 'multiple_use',
+          category_label: 'Hair',
+          stock_quantity: 6,
+          unit_name: 'tubs',
+          low_stock_threshold: 2,
+          min_clients_per_unit: 6,
+          price_per_unit: 650,
+          created_at: now.toISOString()
+        },
+        {
+          id: `inv_${orgId}_3`,
+          organizationId: orgId,
+          name: 'Premium Gel Polish (Assorted Colors)',
+          category_type: 'multiple_use',
+          category_label: 'Nails',
+          stock_quantity: 24,
+          unit_name: 'bottles',
+          low_stock_threshold: 5,
+          min_clients_per_unit: 10,
+          price_per_unit: 200,
+          created_at: now.toISOString()
+        },
+        {
+          id: `inv_${orgId}_4`,
+          organizationId: orgId,
+          name: 'Organic Lavender Massage Oil (500ml)',
+          category_type: 'multiple_use',
+          category_label: 'Massage',
+          stock_quantity: 5,
+          unit_name: 'bottles',
+          low_stock_threshold: 2,
+          min_clients_per_unit: 12,
+          price_per_unit: 350,
+          created_at: now.toISOString()
+        },
+        {
+          id: `inv_${orgId}_5`,
+          organizationId: orgId,
+          name: 'Disposable Salon Towels (Pack of 50)',
+          category_type: 'single_use',
+          category_label: 'General',
+          stock_quantity: 15,
+          unit_name: 'packs',
+          low_stock_threshold: 3,
+          min_clients_per_unit: 1,
+          price_per_unit: 150,
+          created_at: now.toISOString()
+        }
+      ];
+
+      for (const prod of defaultProducts) {
+        try {
+          await setDoc(doc(db, 'inventory_products', prod.id), cleanUndefined(prod));
+        } catch (e) {
+          console.warn('Product seed notice:', e);
+        }
+      }
+
+      // 9. Seed Default Treatment Artists for New Salon
+      const defaultArtists = [
+        { id: `art_${orgId}_1`, organizationId: orgId, name: 'Lead Hair Stylist', specialty: 'Hair', skills: 'Balayage, Cuts, Styling, Keratin', created_at: now.toISOString() },
+        { id: `art_${orgId}_2`, organizationId: orgId, name: 'Senior Nail Technician', specialty: 'Nails', skills: 'Gel, Acrylics, Nail Art, Spa Pedicure', created_at: now.toISOString() },
+        { id: `art_${orgId}_3`, organizationId: orgId, name: 'Esthetician & Skin Specialist', specialty: 'Skin', skills: 'Facials, Cleansing, Glow Therapy', created_at: now.toISOString() },
+        { id: `art_${orgId}_4`, organizationId: orgId, name: 'Certified Massage Therapist', specialty: 'Massage', skills: 'Swedish, Deep Tissue, Aromatherapy', created_at: now.toISOString() },
+      ];
+
+      for (const art of defaultArtists) {
+        try {
+          await setDoc(doc(db, 'artists', art.id), cleanUndefined(art));
+        } catch (e) {
+          console.warn('Artist seed notice:', e);
+        }
+      }
+
+      // 10. Seed Custom SMS Templates for New Salon
+      try {
+        await setDoc(doc(db, 'settings', `${orgId}_sms_templates`), cleanUndefined({
+          organizationId: orgId,
+          welcome_am: `ውድ {name}፣ ${salonName.trim()} ስለተመዘገቡ እናመሰግናለን!`,
+          welcome_en: `Dear {name}, thank you for registering with ${salonName.trim()}! We are thrilled to welcome you.`,
+          billing_am: `ውድ {name}፣ ስለመጡልን እናመሰግናለን! የከፈሉት ጠቅላላ ድምር {amount} ብር ነው። ${salonName.trim()}!`,
+          billing_en: `Dear {name}, thank you for visiting ${salonName.trim()}! You paid a total of {amount} Birr. See you soon!`
+        }));
+      } catch (e) {
+        console.warn('SMS templates seed notice:', e);
+      }
+
+      // 11. Write to local storage registry cache
       try {
         const localCached = JSON.parse(localStorage.getItem('viavela_local_orgs') || '[]');
         const updatedLocal = [newOrg, ...localCached.filter((o: any) => o.id !== orgId)];

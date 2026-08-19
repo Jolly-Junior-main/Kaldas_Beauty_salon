@@ -6,7 +6,7 @@
 
 import React, { useState } from 'react';
 import { useTenant } from '../lib/tenantContext';
-import { Language, StaffMember, UserRole, Organization } from '../types';
+import { Language, StaffMember, UserRole } from '../types';
 import KonjoLogo from './KonjoLogo';
 // @ts-expect-error - Vite handles jpg asset loading, TS bypass
 import salonInterior from '../assets/images/luxury_beauty_salon_1781874528973.jpg';
@@ -16,15 +16,8 @@ import {
   Lock, 
   User, 
   ArrowLeft, 
-  KeyRound, 
-  CreditCard, 
-  Scissors, 
-  Package, 
-  Building2, 
   ShieldCheck,
-  ChevronDown,
-  ChevronUp,
-  Sparkles
+  Info
 } from 'lucide-react';
 import { DEFAULT_ORG_ID } from '../lib/migration';
 
@@ -54,33 +47,29 @@ export default function SalonLogin({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
-  const [showQuickStaff, setShowQuickStaff] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isKaldas = salonId === DEFAULT_ORG_ID || (salonName && salonName.toLowerCase().includes('kaldas'));
 
-  // Filter staff specifically for this salon
-  const salonStaff = staffList.filter(s => {
-    if (isKaldas) {
-      return !s.organizationId || s.organizationId === DEFAULT_ORG_ID;
-    }
-    return s.organizationId === salonId;
-  });
-
-  const handleQuickLogin = (u: string, p: string) => {
-    setUsername(u);
-    setPassword(p);
-    executeLogin(u, p);
-  };
-
   const executeLogin = (userStr: string, passStr: string) => {
+    setIsSubmitting(true);
+    setLoginError('');
+
     const cleanUser = (userStr || '').trim().toLowerCase();
     const cleanPass = (passStr || '').trim();
+
+    if (!cleanUser || !cleanPass) {
+      setLoginError(lang === 'am' ? 'እባክዎ የተጠቃሚ ስም እና የይለፍ ቃል ያስገቡ!' : 'Please enter both username and password!');
+      setIsSubmitting(false);
+      return;
+    }
 
     // 1. If Kaldas Salon, check default accounts & passwords
     if (isKaldas) {
       if (cleanUser === 'admin1' || cleanUser === 'sara' || cleanUser === 'owner' || cleanUser === 'admin') {
         if (cleanPass === 'Admin1' || cleanPass === 'Owner123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'admin1') {
           setUserSession('admin', cleanUser === 'sara' ? 'Sara (Owner)' : 'Admin1', salonId);
+          setIsSubmitting(false);
           onLoginSuccess();
           return;
         }
@@ -89,6 +78,7 @@ export default function SalonLogin({
       if (cleanUser === 'cashier1' || cleanUser === 'cashier') {
         if (cleanPass === 'Cashier123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'cashier1') {
           setUserSession('cashier', 'Cashier1', salonId);
+          setIsSubmitting(false);
           onLoginSuccess();
           return;
         }
@@ -97,6 +87,7 @@ export default function SalonLogin({
       if (cleanUser === 'walkin1' || cleanUser === 'walkin') {
         if (cleanPass === 'Walkin123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'walkin1') {
           setUserSession('walkin', 'Walkin1', salonId);
+          setIsSubmitting(false);
           onLoginSuccess();
           return;
         }
@@ -105,6 +96,7 @@ export default function SalonLogin({
       if (cleanUser === 'inventory1' || cleanUser === 'inventory') {
         if (cleanPass === 'Inventory123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'inventory1') {
           setUserSession('inventory', 'Inventory1', salonId);
+          setIsSubmitting(false);
           onLoginSuccess();
           return;
         }
@@ -113,6 +105,7 @@ export default function SalonLogin({
       if (cleanUser === 'assistant1' || cleanUser === 'assistant' || cleanUser === 'stylist1') {
         if (cleanPass === 'Assistant123!' || cleanPass === 'Stylist123!' || cleanPass === '1234' || cleanPass.toLowerCase() === 'assistant1') {
           setUserSession('assistant', 'Assistant1', salonId);
+          setIsSubmitting(false);
           onLoginSuccess();
           return;
         }
@@ -122,6 +115,43 @@ export default function SalonLogin({
       if (cleanUser === 'owner' || cleanUser === 'admin' || cleanUser === 'admin1' || cleanUser.includes('owner') || cleanUser.includes('admin')) {
         if (cleanPass === 'Salon123!' || cleanPass === '1234' || cleanPass === 'Admin1' || cleanPass.toLowerCase() === 'admin1') {
           setUserSession('admin', `${salonName} Owner`, salonId);
+          setIsSubmitting(false);
+          onLoginSuccess();
+          return;
+        }
+      }
+
+      if (cleanUser === 'cashier' || cleanUser === 'cashier1') {
+        if (cleanPass === '1234' || cleanPass === 'Cashier123!' || cleanPass.toLowerCase() === 'cashier1') {
+          setUserSession('cashier', `${salonName} Cashier`, salonId);
+          setIsSubmitting(false);
+          onLoginSuccess();
+          return;
+        }
+      }
+
+      if (cleanUser === 'walkin' || cleanUser === 'reception' || cleanUser === 'walkin1') {
+        if (cleanPass === '1234' || cleanPass === 'Walkin123!' || cleanPass.toLowerCase() === 'walkin1') {
+          setUserSession('walkin', `${salonName} Reception`, salonId);
+          setIsSubmitting(false);
+          onLoginSuccess();
+          return;
+        }
+      }
+
+      if (cleanUser === 'inventory' || cleanUser === 'inventory1') {
+        if (cleanPass === '1234' || cleanPass === 'Inventory123!' || cleanPass.toLowerCase() === 'inventory1') {
+          setUserSession('inventory', `${salonName} Inventory`, salonId);
+          setIsSubmitting(false);
+          onLoginSuccess();
+          return;
+        }
+      }
+
+      if (cleanUser === 'stylist' || cleanUser === 'assistant' || cleanUser === 'assistant1') {
+        if (cleanPass === '1234' || cleanPass === 'Assistant123!' || cleanPass.toLowerCase() === 'assistant1') {
+          setUserSession('assistant', `${salonName} Stylist`, salonId);
+          setIsSubmitting(false);
           onLoginSuccess();
           return;
         }
@@ -135,8 +165,12 @@ export default function SalonLogin({
           ? (!s.organizationId || s.organizationId === DEFAULT_ORG_ID)
           : (s.organizationId === salonId);
 
-        const nameMatch = (s?.name || '').trim().toLowerCase() === cleanUser || (s?.email || '').trim().toLowerCase() === cleanUser;
-        const passMatch = (s?.password || '').trim() === cleanPass || cleanPass === '1234' || cleanPass === 'Salon123!' || cleanPass.toLowerCase() === (s?.password || '').toLowerCase();
+        const nameMatch = (s?.name || '').trim().toLowerCase() === cleanUser || 
+                          (s?.email || '').trim().toLowerCase() === cleanUser;
+        const passMatch = (s?.password || '').trim() === cleanPass || 
+                          cleanPass === '1234' || 
+                          cleanPass === 'Salon123!' || 
+                          cleanPass.toLowerCase() === (s?.password || '').toLowerCase();
 
         return orgMatch && nameMatch && passMatch;
       }
@@ -144,10 +178,12 @@ export default function SalonLogin({
 
     if (matched) {
       setUserSession(matched.role as any, matched.name, salonId);
+      setIsSubmitting(false);
       onLoginSuccess();
       return;
     }
 
+    setIsSubmitting(false);
     setLoginError(
       lang === 'am' ? 'የተሳሳተ የተጠቃሚ ስም ወይም የይለፍ ቃል!' : 'Incorrect username or password for this salon!'
     );
@@ -213,41 +249,43 @@ export default function SalonLogin({
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-neutral-900">{salonName}</h1>
           <p className="text-[10px] sm:text-[11px] text-amber-700 font-extrabold uppercase tracking-widest bg-amber-50 py-1 px-3 rounded-full inline-block border border-amber-200/60">
-            {lang === 'am' ? 'የአስተዳዳሪ እና የሰራተኞች ማረጋገጫ' : 'Administrative & Staff Access'}
+            {lang === 'am' ? 'የአስተዳዳሪ እና የሰራተኞች ማረጋገጫ' : 'Administrative & Staff Sign-In'}
           </p>
         </div>
 
-        {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-3.5 text-left">
+        {/* Real Sign-In Form (Type Credentials Required) */}
+        <form onSubmit={handleSubmit} className="space-y-4 text-left">
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">
+            <label className="text-[11px] font-bold text-neutral-600 uppercase tracking-wider block">
               {lang === 'am' ? 'የተጠቃሚ ስም / ኢሜይል' : 'Username or Email'}
             </label>
             <div className="relative">
-              <User className="w-3.5 h-3.5 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <User className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                className="w-full bg-neutral-50/90 border border-neutral-250 rounded-xl py-2.5 pl-9 pr-3 text-xs focus:ring-1 focus:ring-neutral-900 focus:outline-none focus:border-neutral-900 font-medium text-neutral-800 placeholder:text-neutral-400"
+                autoComplete="username"
+                className="w-full bg-neutral-50/90 border border-neutral-250 rounded-xl py-2.5 pl-10 pr-3 text-xs focus:ring-1 focus:ring-neutral-900 focus:outline-none focus:border-neutral-900 font-medium text-neutral-800 placeholder:text-neutral-400"
                 placeholder={isKaldas ? "e.g. Sara or Admin1" : "e.g. Owner or Staff Name"}
               />
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">
+            <label className="text-[11px] font-bold text-neutral-600 uppercase tracking-wider block">
               {lang === 'am' ? 'የይለፍ ቃል' : 'Password'}
             </label>
             <div className="relative">
-              <Lock className="w-3.5 h-3.5 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Lock className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full bg-neutral-50/90 border border-neutral-250 rounded-xl py-2.5 pl-9 pr-10 text-xs focus:ring-1 focus:ring-neutral-900 focus:outline-none focus:border-neutral-900 font-medium text-neutral-800 placeholder:text-neutral-400 font-mono"
+                autoComplete="current-password"
+                className="w-full bg-neutral-50/90 border border-neutral-250 rounded-xl py-2.5 pl-10 pr-10 text-xs focus:ring-1 focus:ring-neutral-900 focus:outline-none focus:border-neutral-900 font-medium text-neutral-800 placeholder:text-neutral-400 font-mono"
                 placeholder="••••••••"
               />
               <button
@@ -256,104 +294,37 @@ export default function SalonLogin({
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 transition-colors p-1"
                 title={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
           </div>
 
           {loginError && (
-            <p className="text-xs font-semibold text-red-600 bg-red-50 p-2.5 rounded-xl border border-red-200 text-center animate-fade-in">
+            <p className="text-xs font-semibold text-red-600 bg-red-50 p-3 rounded-xl border border-red-200 text-center animate-fade-in">
               ⚠️ {loginError}
             </p>
           )}
 
           <button
             type="submit"
-            className="w-full py-3 bg-neutral-900 hover:bg-neutral-800 text-white rounded-full font-bold text-xs shadow-md transition-all active:scale-95 text-center mt-2 block uppercase tracking-wide cursor-pointer"
+            disabled={isSubmitting}
+            className="w-full py-3.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-2xl font-black text-xs shadow-md transition-all active:scale-95 text-center mt-2 block uppercase tracking-wide cursor-pointer disabled:opacity-50"
           >
-            {lang === 'am' ? 'ግባ' : `Sign In to ${salonName}`}
+            {isSubmitting ? (lang === 'am' ? 'በማረጋገጥ ላይ...' : 'Signing In...') : (lang === 'am' ? 'ግባ' : `Sign In to ${salonName}`)}
           </button>
         </form>
 
-        {/* Quick Staff Accounts Drawer */}
-        <div className="bg-neutral-50 rounded-2xl border border-neutral-200 p-3 space-y-2 text-left">
-          <div 
-            onClick={() => setShowQuickStaff(!showQuickStaff)}
-            className="flex items-center justify-between cursor-pointer text-neutral-600 hover:text-neutral-900"
-          >
-            <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-800">
-              <KeyRound className="w-3.5 h-3.5 text-amber-600" />
-              <span>{isKaldas ? 'Available Staff Accounts' : `${salonName} Login Helpers`}</span>
-            </div>
-            {showQuickStaff ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        {/* Informational Guidance Note (Static Reference, NO Tap Auto-Login) */}
+        <div className="bg-neutral-50 rounded-2xl border border-neutral-250/70 p-3 text-left space-y-1.5 text-[11px] text-neutral-600">
+          <div className="flex items-center gap-1.5 font-bold text-neutral-800 text-xs">
+            <Info className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <span>{isKaldas ? 'Kaldas Beauty Salon Staff Access' : `${salonName} Login Reference`}</span>
           </div>
-
-          {showQuickStaff && (
-            <div className="grid grid-cols-2 gap-1.5 pt-1 text-[10px] animate-fade-in">
-              {isKaldas ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin('Sara', 'Admin1')}
-                    className="p-1.5 bg-white hover:bg-neutral-100 rounded-lg border border-neutral-200 text-left transition-colors cursor-pointer"
-                  >
-                    <span className="font-bold text-neutral-900 block">👑 Salon Owner</span>
-                    <span className="text-neutral-500 font-mono">User: Sara</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin('Cashier1', 'Cashier123!')}
-                    className="p-1.5 bg-white hover:bg-neutral-100 rounded-lg border border-neutral-200 text-left transition-colors cursor-pointer"
-                  >
-                    <span className="font-bold text-neutral-900 block">💳 Cashier</span>
-                    <span className="text-neutral-500 font-mono">User: Cashier1</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin('Walkin1', 'Walkin123!')}
-                    className="p-1.5 bg-white hover:bg-neutral-100 rounded-lg border border-neutral-200 text-left transition-colors cursor-pointer"
-                  >
-                    <span className="font-bold text-neutral-900 block">✂️ Walk-in / Queue</span>
-                    <span className="text-neutral-500 font-mono">User: Walkin1</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin('Inventory1', 'Inventory123!')}
-                    className="p-1.5 bg-white hover:bg-neutral-100 rounded-lg border border-neutral-200 text-left transition-colors cursor-pointer"
-                  >
-                    <span className="font-bold text-neutral-900 block">📦 Inventory</span>
-                    <span className="text-neutral-500 font-mono">User: Inventory1</span>
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin('Owner', 'Salon123!')}
-                    className="p-1.5 bg-white hover:bg-neutral-100 rounded-lg border border-neutral-200 text-left transition-colors cursor-pointer col-span-2"
-                  >
-                    <span className="font-bold text-neutral-900 block">👑 {salonName} Owner / Admin</span>
-                    <span className="text-neutral-500 font-mono">User: <b>Owner</b> | Pass: <b>Salon123!</b></span>
-                  </button>
-
-                  {salonStaff.filter(s => s.role !== 'admin').map((stf, idx) => (
-                    <button
-                      key={stf.id || idx}
-                      type="button"
-                      onClick={() => handleQuickLogin(stf.name, stf.password || '1234')}
-                      className="p-1.5 bg-white hover:bg-neutral-100 rounded-lg border border-neutral-200 text-left transition-colors cursor-pointer"
-                    >
-                      <span className="font-bold text-neutral-900 block capitalize">👤 {stf.name} ({stf.role})</span>
-                      <span className="text-neutral-500 font-mono text-[9px]">Pass: {stf.password || '1234'}</span>
-                    </button>
-                  ))}
-                </>
-              )}
-            </div>
-          )}
+          <p className="text-[10.5px] leading-relaxed text-neutral-500">
+            {isKaldas 
+              ? 'Enter your assigned staff username (e.g. Sara, Admin1, Cashier1, Walkin1, Inventory1) and password to access the workspace.'
+              : 'Enter your salon owner username (e.g. Owner) or staff username with your configured password (default: Salon123! or 1234).'}
+          </p>
         </div>
 
         {/* Bilingual toggler on login card */}

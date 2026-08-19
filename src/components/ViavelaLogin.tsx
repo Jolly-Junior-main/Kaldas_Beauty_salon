@@ -214,24 +214,10 @@ export default function ViavelaLogin({
               <span>{isLoggingIn ? 'Authenticating...' : 'Sign In as Super Admin'}</span>
             </button>
 
-            {/* Quick Helper for Super Admin */}
-            <div className="p-2.5 bg-neutral-950/60 rounded-xl border border-neutral-800 text-[11px] text-neutral-400 flex items-center justify-between">
-              <div>
-                <span className="font-bold text-amber-400 block">Super Admin Credentials</span>
-                <span className="font-mono text-[10px] text-neutral-500">Username: <b>Admin1</b> | Password: <b>Admin1</b></span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('Admin1');
-                  setPassword('Admin1');
-                  setUserSession('SUPER_ADMIN', 'Super Admin', null);
-                  onLoginSuccess();
-                }}
-                className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold rounded-lg text-[10px] cursor-pointer"
-              >
-                1-Click Sign In
-              </button>
+            {/* Credential Guide Note */}
+            <div className="p-2.5 bg-neutral-950/60 rounded-xl border border-neutral-800 text-[11px] text-neutral-400">
+              <span className="font-bold text-amber-400 block">Super Admin Sign-In Credentials</span>
+              <span className="font-mono text-[10px] text-neutral-400">Username: <b className="text-white">Admin1</b> &nbsp;|&nbsp; Password: <b className="text-white">Admin1</b></span>
             </div>
           </form>
         )}
