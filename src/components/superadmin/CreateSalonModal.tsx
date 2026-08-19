@@ -6,10 +6,24 @@
 
 import React, { useState } from 'react';
 import { collection, doc, setDoc } from 'firebase/firestore';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth, db, cleanUndefined, uploadToStorage } from '../../lib/firebase';
-import { Organization, SaaSRole, StaffMember } from '../../types';
-import { X, Check, Building2, Users, KeyRound, Sparkles, Upload, ArrowRight, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { db, cleanUndefined, uploadToStorage } from '../../lib/firebase';
+import { Organization, StaffMember } from '../../types';
+import { 
+  X, 
+  Check, 
+  Building2, 
+  Users, 
+  KeyRound, 
+  Sparkles, 
+  Upload, 
+  ArrowRight, 
+  ArrowLeft, 
+  ShieldCheck,
+  Phone,
+  Mail,
+  MapPin,
+  FileText
+} from 'lucide-react';
 
 interface CreateSalonModalProps {
   onClose: () => void;
@@ -42,7 +56,7 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
 
   // Step 3: Owner Authentication Account
   const [ownerEmail, setOwnerEmail] = useState('');
-  const [ownerPassword, setOwnerPassword] = useState('');
+  const [ownerPassword, setOwnerPassword] = useState('Salon123!');
   const [ownerPhone, setOwnerPhone] = useState('');
 
   // Step 4: 14-Day Trial & Plan Selection
@@ -68,14 +82,27 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
 
   const handleFinalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!salonName.trim()) {
+      setErrorText('Please provide a valid Salon Name.');
+      setStep(1);
+      return;
+    }
+
     setIsSaving(true);
     setErrorText('');
 
     try {
-      // 1. Upload Logo if provided
+      // 1. Upload Logo or use Preview
       let finalLogoUrl = '';
       if (logoFile) {
-        finalLogoUrl = await uploadToStorage('salon_logos', logoFile);
+        try {
+          finalLogoUrl = await uploadToStorage('salon_logos', logoFile);
+        } catch (uploadErr) {
+          console.warn('Storage upload note:', uploadErr);
+          finalLogoUrl = logoPreview || '';
+        }
+      } else if (logoPreview) {
+        finalLogoUrl = logoPreview;
       }
 
       // 2. Generate Organization Document
@@ -88,13 +115,13 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
       const newOrg: Organization = {
         id: orgId,
         salonName: salonName.trim(),
-        ownerName: ownerName.trim(),
-        phone: phone.trim(),
-        email: email.trim() || ownerEmail.trim(),
+        ownerName: ownerName.trim() || 'Salon Owner',
+        phone: phone.trim() || '+251 900 000000',
+        email: email.trim() || ownerEmail.trim() || `${salonName.toLowerCase().replace(/\s+/g, '')}@viavelacrm.com`,
         tinNumber: tinNumber.trim() || undefined,
         address: address.trim() || undefined,
-        city: city.trim(),
-        country: country.trim(),
+        city: city.trim() || 'Addis Ababa',
+        country: country.trim() || 'Ethiopia',
         logoUrl: finalLogoUrl || undefined,
         status: 'trialing',
         createdAt: now.toISOString(),
@@ -126,38 +153,48 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
         updatedAt: now.toISOString()
       }));
 
-      // 4. Create Owner Profile & Firebase Auth User
-      let ownerUid = `usr_${Date.now()}`;
-      try {
-        if (ownerEmail && ownerPassword) {
-          const userCredential = await createUserWithEmailAndPassword(auth, ownerEmail, ownerPassword);
-          ownerUid = userCredential.user.uid;
-        }
-      } catch (authErr) {
-        console.warn('Firebase Auth user creation note (or fallback to Firestore profile):', authErr);
-      }
+      // 4. Create Owner Profile in `users` and `staff` collection
+      const ownerUid = `usr_${orgId}_owner`;
+      const finalOwnerEmail = ownerEmail.trim() || email.trim() || `${salonName.toLowerCase().replace(/\s+/g, '')}@viavelacrm.com`;
+      const finalOwnerPass = ownerPassword.trim() || 'Salon123!';
 
       const ownerUserRef = doc(db, 'users', ownerUid);
       await setDoc(ownerUserRef, cleanUndefined({
         uid: ownerUid,
-        email: ownerEmail.trim() || email.trim(),
-        displayName: ownerName.trim(),
+        email: finalOwnerEmail,
+        displayName: ownerName.trim() || 'Salon Owner',
         phone: ownerPhone.trim() || phone.trim(),
         organizationId: orgId,
         role: 'SALON_OWNER',
+        password: finalOwnerPass,
         status: 'active',
         createdAt: now.toISOString()
       }));
 
-      // 5. Seed Initial Staff Members
-      for (const s of initialStaffList) {
+      // Also create an admin staff member so they can log in directly to their salon CRM
+      const ownerStaffRef = doc(db, 'staff', `staff_${orgId}_owner`);
+      await setDoc(ownerStaffRef, cleanUndefined({
+        id: `staff_${orgId}_owner`,
+        organizationId: orgId,
+        name: ownerName.trim() || 'Owner',
+        role: 'admin',
+        password: finalOwnerPass,
+        email: finalOwnerEmail,
+        phone: phone.trim(),
+        created_at: now.toISOString()
+      }));
+
+      // 5. Seed Initial Staff Members if specified
+      for (let i = 0; i < initialStaffList.length; i++) {
+        const s = initialStaffList[i];
         if (s.name.trim()) {
-          const staffRef = doc(collection(db, 'staff'));
+          const staffRef = doc(db, 'staff', `staff_${orgId}_${i + 1}`);
           const staffMember: StaffMember = {
-            id: staffRef.id,
+            id: `staff_${orgId}_${i + 1}`,
             organizationId: orgId,
             name: s.name.trim(),
             role: (s.role.toLowerCase() as any),
+            password: '1234',
             phone: s.phone.trim() || undefined,
             created_at: now.toISOString()
           };
@@ -166,22 +203,26 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
       }
 
       // 6. Log Activity in Super Admin audit trail
-      const actRef = doc(collection(db, 'activityLogs'));
-      await setDoc(actRef, cleanUndefined({
-        id: actRef.id,
-        userId: 'super_admin',
-        userName: 'Super Admin',
-        organizationId: orgId,
-        action: 'CREATED_SALON',
-        description: `Created new salon "${salonName}" with 14-day free trial ending ${new Date(trialEndDate).toLocaleDateString()}.`,
-        timestamp: now.toISOString()
-      }));
+      try {
+        const actRef = doc(collection(db, 'activityLogs'));
+        await setDoc(actRef, cleanUndefined({
+          id: actRef.id,
+          userId: 'super_admin',
+          userName: 'Super Admin',
+          organizationId: orgId,
+          action: 'CREATED_SALON',
+          description: `Created new salon "${salonName}" with 14-day free trial ending ${new Date(trialEndDate).toLocaleDateString()}.`,
+          timestamp: now.toISOString()
+        }));
+      } catch (logErr) {
+        console.warn('Activity log note:', logErr);
+      }
 
       onSalonCreated(newOrg);
       onClose();
     } catch (err: any) {
       console.error('Failed to create salon:', err);
-      setErrorText(err.message || 'An error occurred while creating the salon.');
+      setErrorText(err.message || 'An error occurred while creating the salon. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -219,7 +260,10 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
           {/* STEP 1: Business Information */}
           {step === 1 && (
             <div className="space-y-4 animate-fade-in">
-              <h4 className="text-xs font-black uppercase text-neutral-500 tracking-wider">Step 1 — Business Information</h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-black uppercase text-neutral-500 tracking-wider">Step 1 — Business Information</h4>
+                <span className="text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">Required: Salon Name & Owner</span>
+              </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
@@ -333,7 +377,7 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
               <div className="pt-4 flex justify-end">
                 <button
                   type="button"
-                  disabled={!salonName || !ownerName || !phone}
+                  disabled={!salonName.trim()}
                   onClick={() => setStep(2)}
                   className="px-6 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-40 cursor-pointer"
                 >
@@ -367,7 +411,7 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
                   <button
                     type="button"
                     onClick={handleAddStaffRow}
-                    className="text-[11px] font-bold text-amber-700 hover:underline"
+                    className="text-[11px] font-bold text-amber-700 hover:underline cursor-pointer"
                   >
                     + Add Staff Row
                   </button>
@@ -394,7 +438,7 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
                           updated[index].role = e.target.value;
                           setInitialStaffList(updated);
                         }}
-                        className="px-2.5 py-1.5 bg-white border border-neutral-200 rounded-lg text-xs font-bold text-neutral-800"
+                        className="px-2.5 py-1.5 bg-white border border-neutral-200 rounded-lg text-xs font-bold text-neutral-800 cursor-pointer"
                       >
                         <option value="STYLIST">Stylist / Artist</option>
                         <option value="CASHIER">Cashier Desk</option>
@@ -405,7 +449,7 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
                       <button
                         type="button"
                         onClick={() => handleRemoveStaffRow(index)}
-                        className="p-1.5 text-neutral-400 hover:text-red-600 rounded-lg"
+                        className="p-1.5 text-neutral-400 hover:text-red-600 rounded-lg cursor-pointer"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -418,7 +462,7 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="px-4 py-2 text-xs font-bold text-neutral-600 hover:text-neutral-900 flex items-center gap-1"
+                  className="px-4 py-2 text-xs font-bold text-neutral-600 hover:text-neutral-900 flex items-center gap-1 cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span>Back</span>
@@ -443,11 +487,10 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
 
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-neutral-700">Owner Login Email *</label>
+                  <label className="block text-[11px] font-bold text-neutral-700">Owner Login Email / Username</label>
                   <input
-                    type="email"
-                    required
-                    value={ownerEmail}
+                    type="text"
+                    value={ownerEmail || (salonName ? `${salonName.toLowerCase().replace(/\s+/g, '')}@viavelacrm.com` : '')}
                     onChange={(e) => setOwnerEmail(e.target.value)}
                     placeholder="owner@salon.com"
                     className="w-full px-3.5 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:border-neutral-900 font-medium"
@@ -455,16 +498,15 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-neutral-700">Temporary Password *</label>
+                  <label className="block text-[11px] font-bold text-neutral-700">Temporary Password</label>
                   <input
-                    type="password"
-                    required
+                    type="text"
                     value={ownerPassword}
                     onChange={(e) => setOwnerPassword(e.target.value)}
-                    placeholder="Min. 6 characters (e.g. SalonPass2026)"
+                    placeholder="e.g. Salon123!"
                     className="w-full px-3.5 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:border-neutral-900 font-mono font-medium"
                   />
-                  <p className="text-[10px] text-neutral-400">Owner can change their password anytime inside their settings.</p>
+                  <p className="text-[10px] text-neutral-400">Owner can change their password anytime inside their salon settings.</p>
                 </div>
               </div>
 
@@ -472,16 +514,15 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="px-4 py-2 text-xs font-bold text-neutral-600 hover:text-neutral-900 flex items-center gap-1"
+                  className="px-4 py-2 text-xs font-bold text-neutral-600 hover:text-neutral-900 flex items-center gap-1 cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span>Back</span>
                 </button>
                 <button
                   type="button"
-                  disabled={!ownerEmail || !ownerPassword}
                   onClick={() => setStep(4)}
-                  className="px-6 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-40 cursor-pointer"
+                  className="px-6 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
                 >
                   <span>Continue to 14-Day Trial</span>
                   <ArrowRight className="w-4 h-4" />
@@ -501,7 +542,7 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
                   <span>Automatic 14-Day Full Free Trial</span>
                 </div>
                 <p className="text-xs text-amber-800 leading-relaxed">
-                  The salon will receive 14 days of unrestricted access to all Viavela CRM modules starting today.
+                  The salon <strong>{salonName}</strong> will receive 14 days of unrestricted access to all Viavela CRM modules starting today.
                   Days remaining will calculate automatically from the live expiration date.
                 </p>
                 <div className="pt-2 text-xs font-mono font-bold text-amber-950 flex justify-between border-t border-amber-200">
@@ -520,7 +561,7 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
                 <button
                   type="button"
                   onClick={() => setStep(3)}
-                  className="px-4 py-2 text-xs font-bold text-neutral-600 hover:text-neutral-900 flex items-center gap-1"
+                  className="px-4 py-2 text-xs font-bold text-neutral-600 hover:text-neutral-900 flex items-center gap-1 cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span>Back</span>

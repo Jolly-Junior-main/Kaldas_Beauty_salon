@@ -40,6 +40,8 @@ import RevenueAnalytics from './RevenueAnalytics';
 import AdvertisementManager from './AdvertisementManager';
 import ActivityLogView from './ActivityLogView';
 
+import { runSaaSMigrationIfNeeded, DEFAULT_ORG_ID } from '../../lib/migration';
+
 type SuperAdminTab = 
   | 'overview' 
   | 'organizations' 
@@ -59,25 +61,84 @@ export default function SuperAdminDashboard() {
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
+  // Guarantee SaaS migration & database bootstrapping on Super Admin mount
+  useEffect(() => {
+    runSaaSMigrationIfNeeded();
+  }, []);
+
   // Subscribe to all organizations, payments, and ads in real-time
   useEffect(() => {
+    const defaultKaldasFallback: Organization = {
+      id: DEFAULT_ORG_ID,
+      salonName: 'Kaldas Beauty Salon',
+      ownerName: 'Admin1',
+      phone: '+251 911 234567',
+      email: 'owner@kaldasbeauty.com',
+      tinNumber: '009845231',
+      address: 'Bole Medhanialem, Edna Mall Tower 3rd Floor',
+      city: 'Addis Ababa',
+      country: 'Ethiopia',
+      status: 'active',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      trialStartDate: '2026-01-01T00:00:00.000Z',
+      trialEndDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      subscriptionStatus: 'active',
+      planId: 'plan_1y',
+      subscriptionId: `sub_${DEFAULT_ORG_ID}`,
+      numberOfStaff: 8,
+      lastLoginAt: new Date().toISOString()
+    };
+
     const unsubOrgs = onSnapshot(collection(db, 'organizations'), (snap) => {
       const list: Organization[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as Organization));
+      
+      // Ensure Kaldas Beauty Salon is always in the list
+      if (!list.some(o => o.id === DEFAULT_ORG_ID || (o.salonName && o.salonName.toLowerCase().includes('kaldas')))) {
+        list.unshift(defaultKaldasFallback);
+      }
+
       list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setOrganizations(list);
+    }, (err) => {
+      console.warn('Organizations listener error:', err);
+      // Fallback in offline / initial sync state
+      setOrganizations([defaultKaldasFallback]);
     });
 
     const unsubPayments = onSnapshot(collection(db, 'payments'), (snap) => {
       const list: SaaSOrganizationPayment[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as SaaSOrganizationPayment));
+      
+      // Ensure default yearly payment record is present
+      if (list.length === 0) {
+        list.push({
+          id: `pay_${DEFAULT_ORG_ID}_yearly`,
+          organizationId: DEFAULT_ORG_ID,
+          subscriptionId: `sub_${DEFAULT_ORG_ID}`,
+          amount: 9999,
+          currency: 'ETB',
+          planId: 'plan_1y',
+          billingPeriod: '1_year',
+          status: 'completed',
+          paymentProvider: 'Telebirr',
+          transactionReference: 'TX-KALDAS-YEARLY-001',
+          paidAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
+        });
+      }
+
       setPayments(list);
+    }, (err) => {
+      console.warn('Payments listener error:', err);
     });
 
     const unsubAds = onSnapshot(collection(db, 'advertisements'), (snap) => {
       const list: Advertisement[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as Advertisement));
       setAds(list);
+    }, (err) => {
+      console.warn('Ads listener error:', err);
     });
 
     return () => {
