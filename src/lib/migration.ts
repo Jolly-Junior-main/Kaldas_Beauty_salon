@@ -25,53 +25,74 @@ export async function runSaaSMigrationIfNeeded(): Promise<void> {
       }
     }
 
-    // 2. Ensure Default Initial Organization Exists
+    // 2. Ensure Default Initial Organization (Kaldas Beauty Salon) Exists as an Active Yearly Subscribed Salon
     const defaultOrgRef = doc(db, 'organizations', DEFAULT_ORG_ID);
     const defaultOrgSnap = await getDoc(defaultOrgRef);
+    const now = new Date();
+    const yearlyEndDate = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString();
 
-    if (!defaultOrgSnap.exists()) {
-      const now = new Date();
-      const trialEndDate = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
+    const defaultOrg: Organization = {
+      id: DEFAULT_ORG_ID,
+      salonName: 'Kaldas Beauty Salon',
+      ownerName: 'Admin1',
+      phone: '+251 911 234567',
+      email: 'owner@kaldasbeauty.com',
+      tinNumber: '009845231',
+      address: 'Bole Medhanialem, Edna Mall Tower 3rd Floor',
+      city: 'Addis Ababa',
+      country: 'Ethiopia',
+      logoUrl: '',
+      status: 'active',
+      createdAt: defaultOrgSnap.exists() ? defaultOrgSnap.data()?.createdAt || now.toISOString() : now.toISOString(),
+      trialStartDate: now.toISOString(),
+      trialEndDate: yearlyEndDate, // 1 year active subscription window
+      subscriptionStatus: 'active',
+      planId: 'plan_1y',
+      subscriptionId: `sub_${DEFAULT_ORG_ID}`,
+      numberOfStaff: 8,
+      lastLoginAt: now.toISOString()
+    };
 
-      const defaultOrg: Organization = {
-        id: DEFAULT_ORG_ID,
-        salonName: 'Kaldas Beauty Salon (Viavela Flagship)',
-        ownerName: 'Admin1',
-        phone: '+251911234567',
-        email: 'owner@kaldasbeauty.com',
-        tinNumber: 'TIN-009845231',
-        address: 'Bole Medhanialem, Edna Mall Tower 3rd Floor',
-        city: 'Addis Ababa',
-        country: 'Ethiopia',
-        logoUrl: '',
-        status: 'active',
-        createdAt: now.toISOString(),
-        trialStartDate: now.toISOString(),
-        trialEndDate: trialEndDate,
-        subscriptionStatus: 'active',
-        planId: 'plan_1y',
-        numberOfStaff: 8,
-        lastLoginAt: now.toISOString()
-      };
+    // Upsert organization record
+    await setDoc(defaultOrgRef, cleanUndefined(defaultOrg), { merge: true });
 
-      await setDoc(defaultOrgRef, cleanUndefined(defaultOrg));
+    // Active 1-Year Subscription for Kaldas Beauty Salon (9,999 ETB)
+    const subRef = doc(db, 'subscriptions', `sub_${DEFAULT_ORG_ID}`);
+    await setDoc(subRef, cleanUndefined({
+      id: `sub_${DEFAULT_ORG_ID}`,
+      organizationId: DEFAULT_ORG_ID,
+      planId: 'plan_1y',
+      status: 'active',
+      billingPeriod: '1_year',
+      price: 9999,
+      startDate: now.toISOString(),
+      endDate: yearlyEndDate,
+      autoRenew: true,
+      paymentProvider: 'Telebirr',
+      paymentReference: 'TX-KALDAS-YEARLY-001',
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString()
+    }), { merge: true });
 
-      // Also create active subscription for the default flagship salon
-      const subRef = doc(db, 'subscriptions', `sub_${DEFAULT_ORG_ID}`);
-      await setDoc(subRef, cleanUndefined({
-        id: `sub_${DEFAULT_ORG_ID}`,
+    // Initial 1-Year Paid Transaction Record in Payments Ledger
+    const payRef = doc(db, 'payments', `pay_${DEFAULT_ORG_ID}_yearly`);
+    const paySnap = await getDoc(payRef);
+    if (!paySnap.exists()) {
+      await setDoc(payRef, cleanUndefined({
+        id: `pay_${DEFAULT_ORG_ID}_yearly`,
         organizationId: DEFAULT_ORG_ID,
+        subscriptionId: `sub_${DEFAULT_ORG_ID}`,
+        amount: 9999,
+        currency: 'ETB',
         planId: 'plan_1y',
-        status: 'active',
         billingPeriod: '1_year',
-        price: 9999,
-        startDate: now.toISOString(),
-        endDate: new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-        autoRenew: true,
+        status: 'completed',
         paymentProvider: 'Telebirr',
-        paymentReference: 'FLAGSHIP-INITIAL-ACTIVE',
+        transactionReference: 'TX-KALDAS-YEARLY-001',
+        paidAt: now.toISOString(),
         createdAt: now.toISOString(),
-        updatedAt: now.toISOString()
+        recordedBy: 'Viavela Platform Setup',
+        notes: 'Initial 1-Year Subscription Plan Payment for Kaldas Beauty Salon'
       }));
     }
 
