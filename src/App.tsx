@@ -36,6 +36,7 @@ import { TenantProvider, useTenant } from './lib/tenantContext';
 import { runSaaSMigrationIfNeeded, DEFAULT_ORG_ID } from './lib/migration';
 import SuperAdminDashboard from './components/superadmin/SuperAdminDashboard';
 import ViavelaLogin from './components/ViavelaLogin';
+import SalonLogin from './components/SalonLogin';
 import TrialBanner from './components/subscription/TrialBanner';
 import AdSlot from './components/ads/AdSlot';
 import SubscriptionRenewalModal from './components/subscription/SubscriptionRenewalModal';
@@ -164,6 +165,7 @@ function SalonAppInner() {
   const isLoggedIn = Boolean(tenantUserRole || localStorage.getItem('kaldas_logged_in') === 'true' || localStorage.getItem('viavela_user_role') !== null);
   const userRole: UserRole | null = (tenantUserRole as any) || (localStorage.getItem('kaldas_user_role') as UserRole) || (localStorage.getItem('viavela_user_role') as any) || null;
   const loggedInUser: string = tenantLoggedInUser || localStorage.getItem('kaldas_logged_user') || localStorage.getItem('viavela_logged_user') || '';
+  const [selectedSalonPortal, setSelectedSalonPortal] = useState<{ id: string; name: string } | null>(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -1390,19 +1392,36 @@ function SalonAppInner() {
     return matchesSearch && c.retentionStatus === segmentFilter;
   });
 
-  // 1. If not logged in, render Viavela Multi-Tenant Login Portal
+  // 1. If not logged in, render either the dedicated Salon Login Section or Viavela Platform Gateway
   if (!isLoggedIn) {
+    if (selectedSalonPortal) {
+      return (
+        <SalonLogin
+          salonId={selectedSalonPortal.id}
+          salonName={selectedSalonPortal.name}
+          staffList={staffList}
+          lang={lang}
+          setLang={setLang}
+          onLoginSuccess={() => {
+            setSelectedSalonPortal(null);
+          }}
+          onBackToViavela={() => {
+            setSelectedSalonPortal(null);
+          }}
+        />
+      );
+    }
+
     return (
       <ViavelaLogin
         staffList={staffList}
         lang={lang}
         setLang={setLang}
         onLoginSuccess={() => {
-          setIsLoggedIn(true);
-          const savedRole = localStorage.getItem('viavela_user_role') || localStorage.getItem('kaldas_user_role');
-          setUserRole(savedRole as any);
-          const savedUser = localStorage.getItem('viavela_logged_user') || localStorage.getItem('kaldas_logged_user');
-          setLoggedInUser(savedUser || '');
+          setSelectedSalonPortal(null);
+        }}
+        onOpenSalonLogin={(id, name) => {
+          setSelectedSalonPortal({ id, name });
         }}
       />
     );
