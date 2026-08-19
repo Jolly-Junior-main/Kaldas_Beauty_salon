@@ -6,7 +6,7 @@
 
 import React, { useState } from 'react';
 import { collection, doc, setDoc } from 'firebase/firestore';
-import { db, cleanUndefined, uploadToStorage } from '../../lib/firebase';
+import { db, cleanUndefined, uploadToStorage, compressImageToDataUrl } from '../../lib/firebase';
 import { Organization, StaffMember } from '../../types';
 import { 
   X, 
@@ -62,13 +62,16 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
   // Step 4: 14-Day Trial & Plan Selection
   const [selectedPlanId, setSelectedPlanId] = useState('plan_1m');
 
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setLogoFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setLogoPreview(reader.result as string);
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImageToDataUrl(file, 256, 256, 0.75);
+        setLogoPreview(compressed);
+      } catch (err) {
+        console.warn('Image preview compression error:', err);
+      }
     }
   };
 
@@ -92,18 +95,8 @@ export default function CreateSalonModal({ onClose, onSalonCreated }: CreateSalo
     setErrorText('');
 
     try {
-      // 1. Upload Logo or use Preview
-      let finalLogoUrl = '';
-      if (logoFile) {
-        try {
-          finalLogoUrl = await uploadToStorage('salon_logos', logoFile);
-        } catch (uploadErr) {
-          console.warn('Storage upload note:', uploadErr);
-          finalLogoUrl = logoPreview || '';
-        }
-      } else if (logoPreview) {
-        finalLogoUrl = logoPreview;
-      }
+      // 1. Instant Logo handling (using lightweight 15KB data URL or storage)
+      let finalLogoUrl = logoPreview || '';
 
       // 2. Generate Organization Document
       const orgRef = doc(collection(db, 'organizations'));

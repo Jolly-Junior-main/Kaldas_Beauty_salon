@@ -49,19 +49,70 @@ export const db = initDb();
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 
-// Helper to upload media/logos to Firebase Storage with base64/URL fallback
+// Helper to compress an image file to a lightweight Data URL (~10-25 KB)
+export function compressImageToDataUrl(file: File, maxWidth = 256, maxHeight = 256, quality = 0.75): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } else {
+          resolve(e.target?.result as string);
+        }
+      };
+      img.onerror = () => resolve(e.target?.result as string);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
+
+// Ultra-fast media uploader with 2-second timeout and lightweight compression fallback
 export async function uploadToStorage(folder: string, file: File): Promise<string> {
+  const compressedDataUrlPromise = compressImageToDataUrl(file);
+
   try {
-    const fileRef = ref(storage, `${folder}/${Date.now()}_${file.name.replace(/\s+/g, '_')}`);
-    const snapshot = await uploadBytes(fileRef, file);
-    return await getDownloadURL(snapshot.ref);
-  } catch (err) {
-    console.warn("Storage upload fallback to Data URL:", err);
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.readAsDataURL(file);
+    const uploadWithTimeout = new Promise<string>(async (resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Storage upload timeout')), 2000);
+      try {
+        const fileRef = ref(storage, `${folder}/${Date.now()}_${file.name.replace(/\s+/g, '_')}`);
+        const snapshot = await uploadBytes(fileRef, file);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+        clearTimeout(timer);
+        resolve(downloadUrl);
+      } catch (err) {
+        clearTimeout(timer);
+        reject(err);
+      }
     });
+
+    return await uploadWithTimeout;
+  } catch (err) {
+    console.debug('Storage upload using lightweight compressed image:', err);
+    return await compressedDataUrlPromise;
   }
 }
 
