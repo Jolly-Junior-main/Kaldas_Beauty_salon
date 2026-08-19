@@ -160,16 +160,10 @@ function SalonAppInner() {
   const [showRegPanel, setShowRegPanel] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Authentication State
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return localStorage.getItem('kaldas_logged_in') === 'true' || localStorage.getItem('viavela_user_role') !== null;
-  });
-  const [userRole, setUserRole] = useState<UserRole | null>(() => {
-    return (localStorage.getItem('kaldas_user_role') as UserRole) || (localStorage.getItem('viavela_user_role') as any) || null;
-  });
-  const [loggedInUser, setLoggedInUser] = useState<string>(() => {
-    return localStorage.getItem('kaldas_logged_user') || localStorage.getItem('viavela_logged_user') || '';
-  });
+  // Authentication State directly reactive with Tenant Context
+  const isLoggedIn = Boolean(tenantUserRole || localStorage.getItem('kaldas_logged_in') === 'true' || localStorage.getItem('viavela_user_role') !== null);
+  const userRole: UserRole | null = (tenantUserRole as any) || (localStorage.getItem('kaldas_user_role') as UserRole) || (localStorage.getItem('viavela_user_role') as any) || null;
+  const loggedInUser: string = tenantLoggedInUser || localStorage.getItem('kaldas_logged_user') || localStorage.getItem('viavela_logged_user') || '';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -1550,12 +1544,7 @@ function SalonAppInner() {
               {/* Logout Button */}
               <button
                 onClick={() => {
-                  setIsLoggedIn(false);
-                  setUserRole(null);
-                  setLoggedInUser('');
-                  localStorage.removeItem('kaldas_logged_in');
-                  localStorage.removeItem('kaldas_user_role');
-                  localStorage.removeItem('kaldas_logged_user');
+                  tenantLogout();
                 }}
                 className="p-1.5 sm:px-3 bg-red-50 hover:bg-red-100 text-red-700 rounded-full text-xs font-bold flex items-center gap-1 border border-red-200/60 transition-all ios-active-scale shrink-0"
                 title={lang === 'am' ? 'ከሲስተሙ ውጣ' : 'Logout'}
@@ -2490,12 +2479,7 @@ function SalonAppInner() {
               <div className="pt-2 border-t border-neutral-200/40 flex justify-end">
                 <button
                   onClick={() => {
-                    setIsLoggedIn(false);
-                    setUserRole(null);
-                    setLoggedInUser('');
-                    localStorage.removeItem('kaldas_logged_in');
-                    localStorage.removeItem('kaldas_user_role');
-                    localStorage.removeItem('kaldas_logged_user');
+                    tenantLogout();
                   }}
                   className="px-4 py-1.5 bg-red-55 text-red-750 hover:bg-red-100 font-bold border border-red-200/40 text-[11px] rounded-full flex items-center gap-1 transition-all ios-active-scale"
                 >

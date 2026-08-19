@@ -126,7 +126,27 @@ export async function runSaaSMigrationIfNeeded(): Promise<void> {
       }
     }
 
-    // 4. Create Initial Super Admin Profile in `users` collection if not exists
+    // 4. Seed Standard Staff Accounts for Kaldas Beauty Salon
+    const defaultStaff = [
+      { id: 'staff_kaldas_owner', name: 'Sara', role: 'admin', password: 'Admin1', email: 'owner@kaldasbeauty.com', phone: '+251 911 234567', organizationId: DEFAULT_ORG_ID },
+      { id: 'staff_kaldas_cashier', name: 'Cashier1', role: 'cashier', password: 'Cashier123!', email: 'cashier@kaldasbeauty.com', phone: '+251 911 234568', organizationId: DEFAULT_ORG_ID },
+      { id: 'staff_kaldas_walkin', name: 'Walkin1', role: 'walkin', password: 'Walkin123!', email: 'walkin@kaldasbeauty.com', phone: '+251 911 234569', organizationId: DEFAULT_ORG_ID },
+      { id: 'staff_kaldas_inventory', name: 'Inventory1', role: 'inventory', password: 'Inventory123!', email: 'inventory@kaldasbeauty.com', phone: '+251 911 234570', organizationId: DEFAULT_ORG_ID },
+      { id: 'staff_kaldas_assistant', name: 'Assistant1', role: 'assistant', password: 'Assistant123!', email: 'assistant@kaldasbeauty.com', phone: '+251 911 234571', organizationId: DEFAULT_ORG_ID }
+    ];
+
+    for (const stf of defaultStaff) {
+      const stfRef = doc(db, 'staff', stf.id);
+      const stfSnap = await getDoc(stfRef);
+      if (!stfSnap.exists()) {
+        await setDoc(stfRef, cleanUndefined({
+          ...stf,
+          created_at: now.toISOString()
+        }));
+      }
+    }
+
+    // 5. Create Initial Super Admin Profile in `users` collection if not exists
     const superAdminRef = doc(db, 'users', 'super_admin_master');
     const saSnap = await getDoc(superAdminRef);
     if (!saSnap.exists()) {
