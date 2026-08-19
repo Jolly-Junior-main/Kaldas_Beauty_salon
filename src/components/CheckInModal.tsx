@@ -222,10 +222,11 @@ export default function CheckInModal({
         return `Deselected ${srv ? srv.name : srvId}: "${reason}"`;
       }).join('; ');
 
-      const combinedCashierNotes = [cashierNotes.trim(), deselectAuditNotes].filter(Boolean).join(' | ');
+      const activeOrgId = localStorage.getItem('viavela_active_org') || 'org_kaldas_default';
 
       const newVisit: Visit = {
         id: visitId,
+        organizationId: activeOrgId,
         customer_id: selectedCustomerId,
         customer_name: clientName,
         phone_number: clientPhone,

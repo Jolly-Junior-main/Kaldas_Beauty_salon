@@ -8,7 +8,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import { Organization, SaaSRole, SubscriptionStatus, UserRole } from '../types';
-import { DEFAULT_ORG_ID } from './migration';
+import { DEFAULT_ORG_ID, SEEDED_ORGANIZATIONS } from './migration';
 
 interface TenantContextType {
   currentOrganizationId: string;
@@ -34,7 +34,10 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     return localStorage.getItem('viavela_active_org') || DEFAULT_ORG_ID;
   });
 
-  const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null);
+  const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(() => {
+    const initialOrgId = localStorage.getItem('viavela_active_org') || DEFAULT_ORG_ID;
+    return SEEDED_ORGANIZATIONS.find(o => o.id === initialOrgId) || SEEDED_ORGANIZATIONS[0];
+  });
   const [isSuperAdminImpersonating, setIsSuperAdminImpersonating] = useState<boolean>(() => {
     return localStorage.getItem('viavela_is_impersonating') === 'true';
   });
@@ -52,6 +55,18 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   // Real-time synchronization with active organization document
   useEffect(() => {
     if (!currentOrganizationId) return;
+
+    // Immediately resolve from seeded / local storage
+    const seeded = SEEDED_ORGANIZATIONS.find(o => o.id === currentOrganizationId);
+    if (seeded) {
+      setCurrentOrganization(seeded);
+    } else {
+      try {
+        const local = JSON.parse(localStorage.getItem('viavela_local_orgs') || '[]');
+        const found = local.find((o: Organization) => o.id === currentOrganizationId);
+        if (found) setCurrentOrganization(found);
+      } catch (e) {}
+    }
 
     const unsubOrg = onSnapshot(doc(db, 'organizations', currentOrganizationId), (docSnap) => {
       if (docSnap.exists()) {
@@ -86,6 +101,10 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
 
   const switchOrganization = (orgId: string) => {
     setCurrentOrganizationId(orgId);
+    const seeded = SEEDED_ORGANIZATIONS.find(o => o.id === orgId);
+    if (seeded) {
+      setCurrentOrganization(seeded);
+    }
     setIsSuperAdminImpersonating(true);
     localStorage.setItem('viavela_active_org', orgId);
     localStorage.setItem('viavela_is_impersonating', 'true');
@@ -115,6 +134,10 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
 
     if (orgId) {
       setCurrentOrganizationId(orgId);
+      const seeded = SEEDED_ORGANIZATIONS.find(o => o.id === orgId);
+      if (seeded) {
+        setCurrentOrganization(seeded);
+      }
       localStorage.setItem('viavela_active_org', orgId);
     }
   };

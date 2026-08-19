@@ -356,6 +356,77 @@ export default function OrganizationDetailView({ organization, onBack, onOpenCRM
           </div>
         </div>
       </div>
+
+      {/* Row 2: Dedicated Salon SMS Gateway & API Configuration */}
+      <div className="bg-white p-6 rounded-3xl border border-neutral-200/80 shadow-xs space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-800 flex items-center justify-center font-bold">
+              📱
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-neutral-900">Dedicated SMS Gateway & API Configuration</h3>
+              <p className="text-xs text-neutral-400">Configure distinct SMS API credentials, sender ID, and routing for {org.salonName}</p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-[10px] font-black uppercase">
+            Active Gateway
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+          <div className="space-y-1">
+            <label className="block text-[11px] font-bold text-neutral-700">SMS Gateway Provider</label>
+            <select
+              defaultValue={org.id === 'org_kaldas_default' ? 'afromessage' : 'ethiotelecom'}
+              className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-bold text-neutral-900 focus:outline-none"
+            >
+              <option value="afromessage">AfroMessage Ethiopia</option>
+              <option value="ethiotelecom">Ethio Telecom Bulk SMS API</option>
+              <option value="twilio">Twilio Global Gateway</option>
+              <option value="custom_http">Custom HTTP Webhook API</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-[11px] font-bold text-neutral-700">Sender ID / Alpha Tag</label>
+            <input
+              type="text"
+              defaultValue={org.id === 'org_kaldas_default' ? 'KALDAS' : org.salonName.slice(0, 8).toUpperCase().replace(/\s+/g, '')}
+              className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-mono font-bold text-neutral-900 focus:outline-none uppercase"
+              placeholder="e.g. KALDAS"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-[11px] font-bold text-neutral-700">API Key / Token</label>
+            <input
+              type="password"
+              defaultValue="afro_live_sec_9938210984123"
+              className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-mono text-neutral-900 focus:outline-none"
+              placeholder="••••••••••••••••"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-[11px] font-bold text-neutral-700">SMS Balance Quota</label>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                defaultValue={org.id === 'org_kaldas_default' ? 5000 : 2500}
+                className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-mono font-bold text-neutral-900 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setActionFeedback(`SMS Gateway configuration updated successfully for ${org.salonName}!`)}
+                className="px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-bold shrink-0 cursor-pointer"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -10,18 +10,91 @@ import { db } from '../../lib/firebase';
 import { adEngine } from '../../lib/adEngine';
 import { useTenant } from '../../lib/tenantContext';
 import { Advertisement, AdSlotPosition } from '../../types';
-import { ExternalLink, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { ExternalLink, Sparkles, Megaphone, Phone, ArrowRight } from 'lucide-react';
 
 interface AdSlotProps {
   slot: AdSlotPosition;
   className?: string;
 }
 
+const DEFAULT_FALLBACK_ADS: Record<AdSlotPosition, Advertisement[]> = {
+  slot_1: [
+    {
+      id: 'default_ad_1',
+      title: '🌟 Viavela Pro Salon Supply & Wholesale Partner',
+      description: 'Get up to 25% discount on bulk professional shampoos, hair oils, keratin treatments, and disposable salon supplies with express delivery in Addis Ababa.',
+      advertiserName: 'Viavela Beauty Wholesale',
+      adType: 'banner',
+      slotPosition: 'slot_1',
+      targetAudience: 'all',
+      status: 'active',
+      ctaText: 'Explore Catalog',
+      ctaUrl: 'https://viavelacrm.com/supplies',
+      contactPhone: '+251 911 500 600',
+      impressionsCount: 150,
+      clicksCount: 24,
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: 'default_ad_2',
+      title: '💳 Telebirr Merchant QR & Instant Digital Checkout',
+      description: 'Accept instant customer payments seamlessly with Zero Transaction Fees for registered beauty salons and spas.',
+      advertiserName: 'Ethio Telecom Telebirr',
+      adType: 'banner',
+      slotPosition: 'slot_1',
+      targetAudience: 'all',
+      status: 'active',
+      ctaText: 'Activate Merchant QR',
+      ctaUrl: 'https://telebirr.et',
+      contactPhone: '127',
+      impressionsCount: 320,
+      clicksCount: 45,
+      createdAt: new Date().toISOString()
+    }
+  ],
+  slot_2: [
+    {
+      id: 'default_ad_side_1',
+      title: '✨ Premium Italian Hair Care & Styling Equipment',
+      description: 'Upgrade your salon with salon-grade hair dryers, curling irons, and sterilizers with 2-year warranty.',
+      advertiserName: 'Milano Beauty Equipment',
+      adType: 'banner',
+      slotPosition: 'slot_2',
+      targetAudience: 'all',
+      status: 'active',
+      ctaText: 'Shop Equipment',
+      ctaUrl: 'https://viavelacrm.com/equipment',
+      contactPhone: '+251 922 400 500',
+      impressionsCount: 85,
+      clicksCount: 12,
+      createdAt: new Date().toISOString()
+    }
+  ],
+  slot_3: [
+    {
+      id: 'default_ad_popup_1',
+      title: '🎉 Expand Your Salon Revenue with Viavela Loyalty Club',
+      description: 'Send automated SMS vouchers and double your client return rate in under 30 days.',
+      advertiserName: 'Viavela Growth Club',
+      adType: 'banner',
+      slotPosition: 'slot_3',
+      targetAudience: 'all',
+      status: 'active',
+      ctaText: 'Learn More',
+      ctaUrl: 'https://viavelacrm.com/growth',
+      contactPhone: '+251 900 000 000',
+      impressionsCount: 40,
+      clicksCount: 9,
+      createdAt: new Date().toISOString()
+    }
+  ],
+  all: []
+};
+
 export default function AdSlot({ slot, className = '' }: AdSlotProps) {
   const { currentOrganizationId, isTrialActive } = useTenant();
   const [ads, setAds] = useState<Advertisement[]>([]);
   const [activeAdIndex, setActiveAdIndex] = useState(0);
-  const [isMuted, setIsMuted] = useState(true);
 
   // Subscribe to active advertisements
   useEffect(() => {
@@ -53,59 +126,76 @@ export default function AdSlot({ slot, className = '' }: AdSlotProps) {
         matchedAds.push(ad);
       });
 
-      setAds(matchedAds);
+      // Fallback to default promotional partner ads if none created yet
+      if (matchedAds.length === 0 && DEFAULT_FALLBACK_ADS[slot]?.length > 0) {
+        setAds(DEFAULT_FALLBACK_ADS[slot]);
+      } else {
+        setAds(matchedAds);
+      }
     }, (err) => {
-      console.warn('AdSlot listener warning:', err);
+      console.warn('AdSlot listener notice:', err);
+      if (DEFAULT_FALLBACK_ADS[slot]?.length > 0) {
+        setAds(DEFAULT_FALLBACK_ADS[slot]);
+      }
     });
 
     return () => unsub();
   }, [slot, isTrialActive, currentOrganizationId]);
 
-  const activeAd = ads[activeAdIndex % (ads.length || 1)];
+  const activeAd = ads[activeAdIndex % (ads.length || 1)] || DEFAULT_FALLBACK_ADS[slot]?.[0];
 
-  // Track impression when active ad changes
+  // Rotate ad periodically if multiple
   useEffect(() => {
-    if (activeAd) {
-      adEngine.trackImpression(activeAd, currentOrganizationId, slot);
+    if (ads.length > 1) {
+      const timer = setInterval(() => {
+        setActiveAdIndex((prev) => (prev + 1) % ads.length);
+      }, 12000);
+      return () => clearInterval(timer);
     }
-  }, [activeAd, currentOrganizationId, slot]);
+  }, [ads.length]);
 
   if (!activeAd) return null;
 
   const handleClick = () => {
-    adEngine.trackClick(activeAd, currentOrganizationId, slot);
+    try {
+      adEngine.trackClick(activeAd, currentOrganizationId, slot);
+    } catch (e) {}
+    if (activeAd.ctaUrl) {
+      window.open(activeAd.ctaUrl, '_blank', 'noopener,noreferrer');
+    }
   };
 
   // --- SLOT 1: Header/Top Ribbon Banner ---
-  if (slot === 'slot_1') {
+  if (slot === 'slot_1' || slot === 'all') {
     return (
-      <div className={`relative overflow-hidden bg-gradient-to-r from-neutral-900 via-amber-950/80 to-neutral-900 border border-amber-500/30 rounded-2xl p-3 shadow-md text-white ${className}`}>
+      <div className={`relative overflow-hidden bg-gradient-to-r from-neutral-900 via-neutral-950 to-neutral-900 border border-amber-500/40 rounded-2xl p-3 sm:p-3.5 shadow-md text-white animate-fade-in ${className}`}>
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="px-2 py-0.5 bg-amber-500 text-neutral-950 text-[9px] font-black uppercase tracking-wider rounded-md">
-              Sponsored
+            <span className="px-2 py-0.5 bg-gradient-to-r from-amber-400 to-amber-500 text-neutral-950 text-[9px] font-black uppercase tracking-wider rounded-md shadow-xs flex items-center gap-1 shrink-0">
+              <Megaphone className="w-2.5 h-2.5" />
+              <span>Sponsored</span>
             </span>
             <div>
-              <h4 className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+              <h4 className="text-xs font-black text-amber-300 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                 {activeAd.title}
               </h4>
-              <p className="text-[11px] text-neutral-300 line-clamp-1">{activeAd.description}</p>
+              <p className="text-[11px] text-neutral-300 line-clamp-1 mt-0.5">{activeAd.description}</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
             {activeAd.contactPhone && (
-              <span className="text-[10px] text-amber-200 font-mono hidden md:inline">
+              <span className="text-[10px] text-amber-200 font-mono hidden md:inline bg-neutral-850 px-2.5 py-1 rounded-lg border border-neutral-800">
                 📞 {activeAd.contactPhone}
               </span>
             )}
             <button
               onClick={handleClick}
-              className="px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-neutral-950 text-xs font-black rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer ios-active-scale"
+              className="px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-neutral-950 text-[11px] font-black rounded-xl transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
             >
-              <span>{activeAd.ctaText || 'Learn More'}</span>
-              <ExternalLink className="w-3 h-3" />
+              <span>{activeAd.ctaText || 'View Partner Offer'}</span>
+              <ArrowRight className="w-3 h-3" />
             </button>
           </div>
         </div>
@@ -113,88 +203,22 @@ export default function AdSlot({ slot, className = '' }: AdSlotProps) {
     );
   }
 
-  // --- SLOT 2: Sidebar / Dashboard Intelligence Card ---
-  if (slot === 'slot_2') {
-    return (
-      <div className={`bg-neutral-900/90 backdrop-blur-md rounded-2xl border border-neutral-800 p-4 shadow-xl text-white space-y-3 overflow-hidden ${className}`}>
-        <div className="flex justify-between items-center">
-          <span className="text-[9px] font-extrabold uppercase tracking-widest text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/30">
-            Featured Partner
-          </span>
-          <span className="text-[10px] text-neutral-400 font-medium">{activeAd.companyName}</span>
-        </div>
-
-        {activeAd.imageUrl && (
-          <div className="relative rounded-xl overflow-hidden aspect-video bg-neutral-950 border border-neutral-800">
-            <img 
-              src={activeAd.imageUrl} 
-              alt={activeAd.title} 
-              className="w-full h-full object-cover hover:scale-105 transition-transform duration-300 cursor-pointer"
-              onClick={handleClick}
-            />
-          </div>
-        )}
-
-        {activeAd.videoUrl && (
-          <div className="relative rounded-xl overflow-hidden aspect-video bg-neutral-950">
-            <video 
-              src={activeAd.videoUrl} 
-              autoPlay 
-              loop 
-              muted={isMuted} 
-              playsInline
-              className="w-full h-full object-cover"
-            />
-            <button 
-              onClick={() => setIsMuted(!isMuted)} 
-              className="absolute bottom-2 right-2 p-1.5 bg-neutral-900/80 rounded-full text-neutral-300 hover:text-white"
-            >
-              {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-            </button>
-          </div>
-        )}
-
-        <div>
-          <h4 className="text-xs font-black text-white">{activeAd.title}</h4>
-          <p className="text-[11px] text-neutral-300 leading-relaxed mt-1">{activeAd.description}</p>
-        </div>
-
-        <button
-          onClick={handleClick}
-          className="w-full py-2 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-neutral-950 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer ios-active-scale"
-        >
-          <span>{activeAd.ctaText || 'Claim Special Offer'}</span>
-          <ExternalLink className="w-3.5 h-3.5" />
-        </button>
-      </div>
-    );
-  }
-
-  // --- SLOT 3: Queue & Footer Banner ---
+  // --- SLOT 2: Sidebar / Card Ad ---
   return (
-    <div className={`bg-neutral-50 rounded-2xl border border-neutral-200/80 p-3.5 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3 text-neutral-800 ${className}`}>
-      <div className="flex items-center gap-3">
-        {activeAd.imageUrl && (
-          <img 
-            src={activeAd.imageUrl} 
-            alt={activeAd.title} 
-            className="w-12 h-12 rounded-xl object-cover border border-neutral-200 shrink-0" 
-          />
-        )}
-        <div>
-          <span className="text-[9px] font-black uppercase text-amber-700 bg-amber-100/80 px-2 py-0.2 rounded-md">
-            Partner Notice
-          </span>
-          <h4 className="text-xs font-black text-neutral-900 mt-0.5">{activeAd.title}</h4>
-          <p className="text-[10px] text-neutral-500 line-clamp-1">{activeAd.description}</p>
-        </div>
+    <div className={`p-4 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-amber-500/30 rounded-2xl text-white space-y-2.5 shadow-md ${className}`}>
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] uppercase font-black px-2 py-0.5 bg-amber-500 text-neutral-950 rounded-md">
+          Partner Spotlight
+        </span>
+        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
       </div>
-
+      <h4 className="text-xs font-bold text-amber-300">{activeAd.title}</h4>
+      <p className="text-[11px] text-neutral-300 leading-relaxed">{activeAd.description}</p>
       <button
         onClick={handleClick}
-        className="px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 shrink-0 cursor-pointer ios-active-scale"
+        className="w-full py-2 bg-neutral-800 hover:bg-neutral-750 text-amber-400 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
       >
-        <span>{activeAd.ctaText || 'View Details'}</span>
+        <span>{activeAd.ctaText || 'Learn More'}</span>
         <ExternalLink className="w-3 h-3" />
       </button>
     </div>

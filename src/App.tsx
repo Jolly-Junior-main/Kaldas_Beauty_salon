@@ -187,6 +187,72 @@ function SalonAppInner() {
   const [staffRole, setStaffRole] = useState<UserRole>('cashier');
   const [staffPassword, setStaffPassword] = useState('');
 
+  // Dynamic brand colors per salon
+  const getSalonTheme = (orgId: string, orgName?: string) => {
+    const name = (orgName || '').toLowerCase();
+    if (orgId === 'org_sheba_spa' || name.includes('sheba')) {
+      return {
+        accent: 'text-purple-600',
+        bgAccent: 'bg-purple-500',
+        badge: 'bg-purple-50 text-purple-800 border-purple-200',
+        gradient: 'bg-gradient-to-r from-purple-500 to-pink-500',
+        border: 'border-purple-400',
+        ring: 'ring-purple-500'
+      };
+    }
+    if (orgId === 'org_bole_glamour' || name.includes('glamour') || name.includes('bole')) {
+      return {
+        accent: 'text-emerald-600',
+        bgAccent: 'bg-emerald-500',
+        badge: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+        gradient: 'bg-gradient-to-r from-emerald-500 to-teal-500',
+        border: 'border-emerald-400',
+        ring: 'ring-emerald-500'
+      };
+    }
+    if (orgId === 'org_enat_studio' || name.includes('enat')) {
+      return {
+        accent: 'text-rose-600',
+        bgAccent: 'bg-rose-500',
+        badge: 'bg-rose-50 text-rose-800 border-rose-200',
+        gradient: 'bg-gradient-to-r from-rose-500 to-pink-500',
+        border: 'border-rose-400',
+        ring: 'ring-rose-500'
+      };
+    }
+    if (orgId === 'org_velvet_touch' || name.includes('velvet')) {
+      return {
+        accent: 'text-indigo-600',
+        bgAccent: 'bg-indigo-500',
+        badge: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+        gradient: 'bg-gradient-to-r from-indigo-500 to-purple-500',
+        border: 'border-indigo-400',
+        ring: 'ring-indigo-500'
+      };
+    }
+    if (orgId === 'org_royal_luxe' || name.includes('royal')) {
+      return {
+        accent: 'text-amber-700',
+        bgAccent: 'bg-amber-600',
+        badge: 'bg-amber-50 text-amber-900 border-amber-300',
+        gradient: 'bg-gradient-to-r from-amber-600 to-yellow-500',
+        border: 'border-amber-500',
+        ring: 'ring-amber-600'
+      };
+    }
+    // Default Gold/Amber theme (Kaldas & Standard)
+    return {
+      accent: 'text-amber-600',
+      bgAccent: 'bg-amber-500',
+      badge: 'bg-amber-50 text-amber-800 border-amber-200',
+      gradient: 'bg-gradient-to-r from-amber-400 to-amber-500',
+      border: 'border-amber-400',
+      ring: 'ring-amber-500'
+    };
+  };
+
+  const salonTheme = getSalonTheme(currentOrganizationId, currentOrganization?.salonName);
+
   // Role Access Control Helpers
   const isTabAllowedForRole = (tab: typeof activeTab, role: UserRole | null): boolean => {
     if (!role) return false;
@@ -1503,14 +1569,18 @@ function SalonAppInner() {
             <div className="flex items-center gap-2.5">
               <div className="flex items-center gap-2 bg-neutral-900 text-white rounded-full py-1 px-3 sm:py-1.5 sm:px-4 shadow-md border border-neutral-800 shrink-0">
                 {currentOrganization?.logoUrl ? (
-                  <img src={currentOrganization.logoUrl} alt={currentOrganization.salonName} className="w-7 h-7 rounded-full object-cover border border-amber-400 shrink-0" />
-                ) : (
+                  <img src={currentOrganization.logoUrl} alt={currentOrganization.salonName} className={`w-7 h-7 rounded-full object-cover border-2 shadow-xs shrink-0 ${salonTheme.border}`} />
+                ) : (currentOrganizationId === DEFAULT_ORG_ID || (currentOrganization?.salonName || '').toLowerCase().includes('kaldas')) ? (
                   <KonjoLogo size={28} className="ios-active-scale shrink-0" />
+                ) : (
+                  <div className={`w-7 h-7 rounded-full text-neutral-950 flex items-center justify-center font-black text-xs shadow-xs shrink-0 ${salonTheme.gradient}`}>
+                    {(currentOrganization?.salonName || 'S')[0].toUpperCase()}
+                  </div>
                 )}
                 <div className="text-left">
                   <div className="flex items-center gap-1.5">
                     <h1 className="text-xs sm:text-sm font-black font-sans tracking-tight leading-none text-white">{currentOrganization?.salonName || dict.app_name}</h1>
-                    <span className="hidden xs:inline-block text-[7.5px] uppercase tracking-wider font-extrabold bg-white/15 text-neutral-200 border border-white/10 rounded-full px-1.5 py-0.5 whitespace-nowrap">
+                    <span className={`hidden xs:inline-block text-[7.5px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-full whitespace-nowrap border ${salonTheme.badge}`}>
                       {dict.mgmt_suite}
                     </span>
                   </div>
@@ -2991,7 +3061,8 @@ function SalonAppInner() {
       {/* Floating Client Registration Overlay Modal */}
       {showRegPanel && (
         <RegistrationForm 
-          existingCustomers={customers} 
+          existingCustomers={customers}
+          organizationId={currentOrganizationId}
           onRegisterSuccess={(newC) => {
             handleRegisterSuccess(newC);
             setShowRegPanel(false);

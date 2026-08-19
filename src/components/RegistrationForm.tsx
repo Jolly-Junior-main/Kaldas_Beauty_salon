@@ -18,9 +18,10 @@ interface RegistrationFormProps {
   lang: Language;
   dict: Dict;
   onClose: () => void;
+  organizationId?: string;
 }
 
-export default function RegistrationForm({ existingCustomers, onRegisterSuccess, lang, dict, onClose }: RegistrationFormProps) {
+export default function RegistrationForm({ existingCustomers, onRegisterSuccess, lang, dict, onClose, organizationId }: RegistrationFormProps) {
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [birthDate, setBirthDate] = useState('');
@@ -90,8 +91,11 @@ export default function RegistrationForm({ existingCustomers, onRegisterSuccess,
         }
       }
 
+      const activeOrgId = organizationId || localStorage.getItem('viavela_active_org') || 'org_kaldas_default';
+
       const rawCustomer = {
         id: customerId,
+        organizationId: activeOrgId,
         full_name: fullName.trim(),
         phone_number: phoneNumber.trim(),
         birth_date: finalBirthDate,
