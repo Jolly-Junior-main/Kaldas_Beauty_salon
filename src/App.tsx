@@ -32,6 +32,13 @@ import KonjoLogo from './components/KonjoLogo';
 import BirthdayWishModal from './components/BirthdayWishModal';
 import CustomBroadcaster from './components/CustomBroadcaster';
 import NotificationDrawer, { AdminPaymentAlert } from './components/NotificationDrawer';
+import { TenantProvider, useTenant } from './lib/tenantContext';
+import { runSaaSMigrationIfNeeded, DEFAULT_ORG_ID } from './lib/migration';
+import SuperAdminDashboard from './components/superadmin/SuperAdminDashboard';
+import ViavelaLogin from './components/ViavelaLogin';
+import TrialBanner from './components/subscription/TrialBanner';
+import AdSlot from './components/ads/AdSlot';
+import SubscriptionRenewalModal from './components/subscription/SubscriptionRenewalModal';
 // @ts-expect-error - Vite handles jpg asset loading, TS bypass
 import salonInterior from './assets/images/luxury_beauty_salon_1781874528973.jpg';
 // @ts-expect-error - Vite handles jpg asset loading, TS bypass
@@ -72,7 +79,25 @@ import {
   Bell
 } from 'lucide-react';
 
-export default function App() {
+function SalonAppInner() {
+  const { 
+    currentOrganizationId, 
+    currentOrganization, 
+    isSuperAdmin, 
+    isSuperAdminImpersonating, 
+    exitImpersonation, 
+    userRole: tenantUserRole, 
+    loggedInUser: tenantLoggedInUser, 
+    logout: tenantLogout,
+    isExpired,
+    subscriptionStatus
+  } = useTenant();
+
+  // Run SaaS platform bootstrap and legacy migration
+  useEffect(() => {
+    runSaaSMigrationIfNeeded();
+  }, []);
+
   const [lang, setLang] = useState<Language>('en');
   const [rawCustomers, setRawCustomers] = useState<any[]>([]);
   const [allVisits, setAllVisits] = useState<any[]>([]);
@@ -137,13 +162,13 @@ export default function App() {
 
   // Authentication State
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return localStorage.getItem('kaldas_logged_in') === 'true';
+    return localStorage.getItem('kaldas_logged_in') === 'true' || localStorage.getItem('viavela_user_role') !== null;
   });
   const [userRole, setUserRole] = useState<UserRole | null>(() => {
-    return (localStorage.getItem('kaldas_user_role') as UserRole) || null;
+    return (localStorage.getItem('kaldas_user_role') as UserRole) || (localStorage.getItem('viavela_user_role') as any) || null;
   });
   const [loggedInUser, setLoggedInUser] = useState<string>(() => {
-    return localStorage.getItem('kaldas_logged_user') || '';
+    return localStorage.getItem('kaldas_logged_user') || localStorage.getItem('viavela_logged_user') || '';
   });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -254,19 +279,28 @@ export default function App() {
   useEffect(() => {
     if (!isLoggedIn) return;
 
-    // 1. Subscribe to Services — always use live Firestore data
+    const isOrgDoc = (docOrgId?: string) => {
+      return docOrgId === currentOrganizationId || (!docOrgId && currentOrganizationId === DEFAULT_ORG_ID);
+    };
+
+    // 1. Subscribe to Services — scoped to active organization
     const unsubServices = onSnapshot(collection(db, 'services'), (snapshot) => {
-      const servicesData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const servicesData = snapshot.docs
+        .filter(d => isOrgDoc(d.data().organizationId))
+        .map(d => ({ id: d.id, ...d.data() }));
       setSalonServices(servicesData);
     }, (err) => {
       console.warn('Firestore Services Subscribe Error:', err);
     });
 
-    // 2. Subscribe to Visits
+    // 2. Subscribe to Visits — scoped to active organization
     const unsubVisits = onSnapshot(collection(db, 'visits'), (snapshot) => {
       const visitsData: any[] = [];
       snapshot.forEach((doc) => {
-        visitsData.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        if (isOrgDoc(data.organizationId)) {
+          visitsData.push({ id: doc.id, ...data });
+        }
       });
       setAllVisits(visitsData);
 
@@ -315,11 +349,14 @@ export default function App() {
       console.warn("Firestore Visits Subscribe Error:", err);
     });
 
-    // 3. Subscribe to Customers
+    // 3. Subscribe to Customers — scoped to active organization
     const unsubCustomers = onSnapshot(collection(db, 'customers'), (snapshot) => {
       const customersData: any[] = [];
       snapshot.forEach((doc) => {
-        customersData.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        if (isOrgDoc(data.organizationId)) {
+          customersData.push({ id: doc.id, ...data });
+        }
       });
       setRawCustomers(customersData);
       setLoading(false);
@@ -332,39 +369,49 @@ export default function App() {
     // Safety net: clear loading state after 5s in case Firestore never responds
     const loadingTimeout = setTimeout(() => setLoading(false), 5000);
 
-    // 4. Subscribe to Treatment Artists — always use live Firestore data
+    // 4. Subscribe to Treatment Artists — scoped to active organization
     const unsubArtists = onSnapshot(collection(db, 'artists'), (snapshot) => {
-      const artistsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const artistsData = snapshot.docs
+        .filter(d => isOrgDoc(d.data().organizationId))
+        .map(d => ({ id: d.id, ...d.data() }));
       setArtistsList(artistsData);
     }, (err) => {
       console.warn('Firestore Artists Subscribe Error:', err);
     });
 
-    // 5. Subscribe to Birthday wishes campaign log
+    // 5. Subscribe to Birthday wishes campaign log — scoped
     const unsubWishes = onSnapshot(collection(db, 'birthday_wishes'), (snapshot) => {
       const wishesData: any[] = [];
       snapshot.forEach((doc) => {
-        wishesData.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        if (isOrgDoc(data.organizationId)) {
+          wishesData.push({ id: doc.id, ...data });
+        }
       });
       setBirthdayWishes(wishesData.sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime()));
     }, (err) => {
       console.error("Firestore Birthday Wishes Subscribe Error:", err);
     });
 
-    // 5b. Subscribe to SMS logs collection (real-time with REST fallback)
+    // 5b. Subscribe to SMS logs collection — scoped
     const unsubSmsLogs = onSnapshot(collection(db, 'sms_logs'), (snapshot) => {
       const logsData: any[] = [];
       snapshot.forEach((doc) => {
-        logsData.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        if (isOrgDoc(data.organizationId)) {
+          logsData.push({ id: doc.id, ...data });
+        }
       });
       setSmsLogs(logsData.sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime()));
     }, (err) => {
       console.warn("Firestore SMS Logs subscription bypassed:", err);
     });
 
-    // 5c. Subscribe to Queue Entries — real-time across ALL logged-in windows
+    // 5c. Subscribe to Queue Entries — scoped to active organization
     const unsubQueue = onSnapshot(collection(db, 'queue_entries'), (snapshot) => {
-      const qData: QueueEntry[] = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as QueueEntry));
+      const qData: QueueEntry[] = snapshot.docs
+        .filter(d => isOrgDoc(d.data().organizationId))
+        .map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as QueueEntry));
 
       // Always update state with whatever Firestore gives us (empty = no active queue right now)
       setQueueEntries(qData);
@@ -444,7 +491,7 @@ export default function App() {
         }).catch(err => console.debug("Error syncing SMS status to server:", err));
       } else {
         // Initialize in Firestore if it doesn't exist yet
-        setDoc(doc(db, 'settings', 'sms'), { enabled: true }).catch(err => {
+        setDoc(doc(db, 'settings', 'sms'), { enabled: true, organizationId: currentOrganizationId }).catch(err => {
           console.debug("Bypassed settings/sms Firestore auto-creation:", err);
         });
         setSmsEnabled(true);
@@ -485,27 +532,27 @@ export default function App() {
       console.warn("Firestore SMS Templates subscription bypassed:", err);
     });
 
-    // 6c. Subscribe to Inventory Products — always use live Firestore data
+    // 6c. Subscribe to Inventory Products — scoped to active organization
     const unsubInvProducts = onSnapshot(collection(db, 'inventory_products'), (snapshot) => {
-      const prods: InventoryProduct[] = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as InventoryProduct));
+      const prods: InventoryProduct[] = snapshot.docs
+        .filter(d => isOrgDoc(d.data().organizationId))
+        .map(d => ({ id: d.id, ...d.data() } as InventoryProduct));
       setInventoryProducts(prods);
     }, (err) => console.warn('Firestore Inventory Products subscribe error:', err));
 
-    // 6d. Subscribe to Active Checkouts collection
+    // 6d. Subscribe to Active Checkouts collection — scoped
     const unsubCheckouts = onSnapshot(collection(db, 'active_checkouts'), (snapshot) => {
-      const checkouts: ActiveProductCheckout[] = [];
-      snapshot.forEach((docSnap) => {
-        checkouts.push({ id: docSnap.id, ...docSnap.data() } as ActiveProductCheckout);
-      });
+      const checkouts: ActiveProductCheckout[] = snapshot.docs
+        .filter(d => isOrgDoc(d.data().organizationId))
+        .map(d => ({ id: d.id, ...d.data() } as ActiveProductCheckout));
       setActiveCheckouts(checkouts);
     }, (err) => console.warn("Firestore Active Checkouts subscribe error:", err));
 
-    // 6e. Subscribe to Inventory Audit Logs collection
+    // 6e. Subscribe to Inventory Logs collection — scoped
     const unsubInvLogs = onSnapshot(collection(db, 'inventory_logs'), (snapshot) => {
-      const logs: InventoryLog[] = [];
-      snapshot.forEach((docSnap) => {
-        logs.push({ id: docSnap.id, ...docSnap.data() } as InventoryLog);
-      });
+      const logs: InventoryLog[] = snapshot.docs
+        .filter(d => isOrgDoc(d.data().organizationId))
+        .map(d => ({ id: d.id, ...d.data() } as InventoryLog));
       setInventoryLogs(logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
     }, (err) => console.warn("Firestore Inventory Logs subscribe error:", err));
 
@@ -1349,102 +1396,27 @@ export default function App() {
     return matchesSearch && c.retentionStatus === segmentFilter;
   });
 
+  // 1. If not logged in, render Viavela Multi-Tenant Login Portal
   if (!isLoggedIn) {
     return (
-      <div 
-        className="min-h-screen flex items-center justify-center p-4 font-sans antialiased text-[#2D2D2D] selection:bg-[#E5D5C8] bg-cover bg-fixed bg-center relative overflow-hidden"
-        style={{ backgroundImage: `url(${salonInterior})` }}
-      >
-        {/* Premium semi-translucent backdrop overlay to preserve vibrant colors of the photo while ensuring top-tier usability */}
-        <div className="absolute inset-0 bg-neutral-950/40 backdrop-blur-[3px] pointer-events-none z-0" />
-        
-        {/* Soft atmospheric background glow */}
-        <div className="absolute top-1/4 -left-20 w-80 h-80 rounded-full bg-white/10 blur-3xl opacity-30 z-0" />
-        <div className="absolute bottom-1/4 -right-20 w-80 h-80 rounded-full bg-amber-500/10 blur-3xl opacity-20 z-0" />
-        
-        <div className="bg-white/95 backdrop-blur-xl rounded-[32px] p-8 md:p-12 border border-neutral-200/50 shadow-2xl max-w-md w-full shrink-0 space-y-8 relative z-10 animate-fade-in text-center">
-          
-          <div className="space-y-3">
-            <div className="flex justify-center mb-1">
-              <KonjoLogo className="w-32 h-32 text-neutral-900 drop-shadow-md" size={128} />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Kaldas Beauty Salon</h1>
-            <p className="text-[11px] text-neutral-400 font-extrabold uppercase tracking-widest">{lang === 'am' ? 'የአስተዳዳሪ ማረጋገጫ' : 'Administrative Access'}</p>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-4 text-left">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">{lang === 'am' ? 'የተጠቃሚ ስም' : 'Username'}</label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                className="w-full bg-neutral-50/90 border border-neutral-200 rounded-xl p-3 text-xs focus:ring-1 focus:ring-neutral-900 focus:outline-none focus:border-neutral-900 font-medium text-neutral-800 placeholder:text-neutral-350"
-                placeholder="e.g. Admin1"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">{lang === 'am' ? 'የይለፍ ቃል' : 'Password'}</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="w-full bg-neutral-50/90 border border-neutral-200 rounded-xl p-3 pr-10 text-xs focus:ring-1 focus:ring-neutral-900 focus:outline-none focus:border-neutral-900 font-medium text-neutral-800 placeholder:text-neutral-355"
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-3.5 text-neutral-400 hover:text-neutral-700 transition-colors flex items-center justify-center"
-                  title={showPassword ? (lang === 'am' ? 'የይለፍ ቃል ደብቅ' : 'Hide password') : (lang === 'am' ? 'የይለፍ ቃል አሳይ' : 'Show password')}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            {loginError && (
-              <p className="text-xs font-semibold text-red-600 bg-red-50 p-2.5 rounded-xl border border-red-200/20 text-center animate-fade-in">
-                ⚠️ {loginError}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              className="w-full py-3 bg-neutral-900 hover:bg-neutral-800 text-white rounded-full font-bold text-xs shadow-ios transition-all active:scale-95 text-center mt-3 block uppercase tracking-wide"
-            >
-              {lang === 'am' ? 'ግባ' : 'Login'}
-            </button>
-          </form>
-
-          {/* Bilingual toggler on login card */}
-          <div className="pt-3 border-t border-neutral-100 flex justify-center gap-2">
-            <button
-              onClick={() => setLang('en')}
-              className={`px-3 py-1 rounded-full text-[10px] font-extrabold ${lang === 'en' ? 'bg-neutral-950 text-white shadow-xs' : 'text-neutral-400'}`}
-            >
-              EN
-            </button>
-            <button
-              onClick={() => setLang('am')}
-              className={`px-3 py-1 rounded-full text-[10px] font-extrabold ${lang === 'am' ? 'bg-neutral-950 text-white shadow-xs' : 'text-neutral-400'}`}
-            >
-              አማ
-            </button>
-          </div>
-
-        </div>
-
-        {/* Custom Developer Credits in bottom right corner */}
-        <div className="absolute bottom-4 right-4 z-10 text-white/90 text-[10px] md:text-xs font-semibold tracking-wide bg-neutral-950/50 backdrop-blur-md py-1.5 px-3.5 rounded-full border border-white/10 shadow-lg pointer-events-none select-none animate-fade-in">
-          Design and developed by <span className="text-amber-300 font-bold tracking-wider">VIAVELA TECHNOLOGY</span>
-        </div>
-      </div>
+      <ViavelaLogin
+        staffList={staffList}
+        lang={lang}
+        setLang={setLang}
+        onLoginSuccess={() => {
+          setIsLoggedIn(true);
+          const savedRole = localStorage.getItem('viavela_user_role') || localStorage.getItem('kaldas_user_role');
+          setUserRole(savedRole as any);
+          const savedUser = localStorage.getItem('viavela_logged_user') || localStorage.getItem('kaldas_logged_user');
+          setLoggedInUser(savedUser || '');
+        }}
+      />
     );
+  }
+
+  // 2. If Super Admin (and not in live impersonation/preview mode), render Super Admin Dashboard
+  if (isSuperAdmin && !isSuperAdminImpersonating) {
+    return <SuperAdminDashboard />;
   }
 
   return (
@@ -1452,6 +1424,27 @@ export default function App() {
       className="min-h-screen font-sans antialiased text-[#2D2D2D] flex flex-col selection:bg-[#E5D5C8] selection:text-[#5A5A40] bg-cover bg-fixed bg-center relative"
       style={{ backgroundImage: `url(${salonInterior})` }}
     >
+      {/* Super Admin Live Impersonation Banner */}
+      {isSuperAdminImpersonating && (
+        <div className="bg-amber-400 text-neutral-950 px-4 py-2 text-xs font-bold flex items-center justify-between shadow-md z-50 sticky top-0 border-b border-amber-500">
+          <div className="flex items-center gap-2">
+            <Eye className="w-4 h-4 text-neutral-950 shrink-0" />
+            <span>
+              Super Admin Live Preview Mode: Viewing salon <strong>{currentOrganization?.salonName || currentOrganizationId}</strong>
+            </span>
+          </div>
+          <button
+            onClick={exitImpersonation}
+            className="px-3 py-1 bg-neutral-950 hover:bg-neutral-800 text-white rounded-lg text-[11px] font-black cursor-pointer shadow-xs transition-colors shrink-0"
+          >
+            Exit Preview & Return to Super Admin
+          </button>
+        </div>
+      )}
+
+      {/* Dynamic 14-Day Free Trial Countdown Banner */}
+      <TrialBanner />
+
       {/* Premium semi-translucent backdrop overlay to ensure flawless contrast and elite readability */}
       <div className="absolute inset-0 bg-[#FAF9F6]/45 backdrop-blur-[2px] pointer-events-none z-0" />
       
@@ -1462,6 +1455,11 @@ export default function App() {
           <span>{uiFeedback}</span>
         </div>
       )}
+
+      {/* Top Ad Slot 1 Ribbon */}
+      <div className="relative z-20 max-w-7xl mx-auto px-3 sm:px-6 lg:px-10 w-full pt-3">
+        <AdSlot slot="slot_1" />
+      </div>
 
       {/* Main Luxury Header Bar - Styled with iOS glassmorphic translucency & responsive mobile/tablet layout */}
       <header className="relative z-30 sticky top-0 backdrop-blur-xl bg-white/85 border-b border-neutral-200/80 shadow-sm py-2.5 px-3 sm:px-6 lg:px-10 transition-all">
@@ -3059,10 +3057,15 @@ export default function App() {
         )
       )}
 
+      {/* Bottom Ad Slot 3 Banner */}
+      <div className="relative z-20 max-w-7xl mx-auto px-3 sm:px-6 lg:px-10 w-full mb-6">
+        <AdSlot slot="slot_3" />
+      </div>
+
       {/* Premium Footer */}
       <footer className="relative z-10 bg-white/70 backdrop-blur-md border-t border-[#E5D5C8]/80 py-8 px-4 text-center mt-12 shadow-inner">
         <p className="text-xs text-[#A89F91] font-medium tracking-wide">
-          {dict.app_name} • Bespoke CRM Luxury Suite © 2026. All Client Formulation Diaries Protected.
+          {currentOrganization?.salonName || dict.app_name} • Viavela Cloud CRM Multi-Tenant Suite © 2026. All Client Formulation Diaries Protected.
         </p>
       </footer>
 
@@ -3092,3 +3095,12 @@ export default function App() {
     </div>
   );
 }
+
+export default function App() {
+  return (
+    <TenantProvider>
+      <SalonAppInner />
+    </TenantProvider>
+  );
+}
+

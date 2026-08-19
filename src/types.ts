@@ -5,12 +5,230 @@
 
 export type Language = 'en' | 'am';
 
+// ==========================================
+// 1. MULTI-TENANT SAAS DATA TYPES
+// ==========================================
+
+export type OrganizationStatus = 'active' | 'trialing' | 'expired' | 'suspended';
+export type SubscriptionStatus = 'trialing' | 'active' | 'expired' | 'canceled' | 'suspended' | 'past_due';
+export type BillingPeriod = '1_month' | '3_months' | '6_months' | '1_year' | '2_years';
+
+export interface Organization {
+  id: string; // organizationId
+  salonName: string;
+  ownerName: string;
+  phone: string;
+  email: string;
+  tinNumber?: string;
+  address?: string;
+  city?: string;
+  country?: string;
+  logoUrl?: string;
+  status: OrganizationStatus;
+  createdAt: string; // ISO date
+  trialStartDate: string; // ISO date
+  trialEndDate: string; // ISO date
+  subscriptionId?: string;
+  subscriptionStatus: SubscriptionStatus;
+  planId?: string;
+  numberOfStaff: number;
+  lastLoginAt?: string;
+}
+
+export interface Subscription {
+  id: string; // subscriptionId
+  organizationId: string;
+  planId: string;
+  status: SubscriptionStatus;
+  billingPeriod: BillingPeriod;
+  price: number; // in ETB
+  startDate: string; // ISO date
+  endDate: string; // ISO date
+  trialStartDate?: string;
+  trialEndDate?: string;
+  autoRenew: boolean;
+  paymentProvider?: PaymentProvider;
+  paymentReference?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string; // "1 Month", "3 Months", "6 Months", "1 Year", "2 Years"
+  durationMonths: number;
+  price: number; // in ETB
+  features: string[];
+  maxStaff?: number;
+  maxClients?: number;
+  status: 'active' | 'archived';
+  description?: string;
+}
+
+export const PREDEFINED_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
+  {
+    id: 'plan_1m',
+    name: '1 Month',
+    durationMonths: 1,
+    price: 999,
+    features: ['Unlimited Clients & Visits', 'Smart Queue System', 'Real-time SMS Alerts', 'Inventory Tracking', 'Standard Support'],
+    status: 'active',
+    description: 'Perfect for getting started with modern salon automation.'
+  },
+  {
+    id: 'plan_3m',
+    name: '3 Months',
+    durationMonths: 3,
+    price: 2999,
+    features: ['Everything in 1 Month', 'Detailed Financial Reports', 'Multi-Stylist Commission Tracking', 'Priority Support'],
+    status: 'active',
+    description: 'Quarterly peace of mind with complete salon intelligence.'
+  },
+  {
+    id: 'plan_6m',
+    name: '6 Months',
+    durationMonths: 6,
+    price: 5999,
+    features: ['Everything in 3 Months', 'Customer Retention AI Analytics', 'Product Usage Alerts', 'Dedicated Onboarding'],
+    status: 'active',
+    description: 'High value growth plan for established salons.'
+  },
+  {
+    id: 'plan_1y',
+    name: '1 Year',
+    durationMonths: 12,
+    price: 9999,
+    features: ['All Premium Features Included', 'Unlimited Staff & Stylists', 'Zero Ad Distractions', '24/7 VIP Phone Support', 'Annual Savings'],
+    status: 'active',
+    description: 'Most Popular! Complete salon solution with maximum annual savings.'
+  },
+  {
+    id: 'plan_2y',
+    name: '2 Years',
+    durationMonths: 24,
+    price: 17999,
+    features: ['Lifetime Legacy Rate Guarantee', 'Enterprise Customizations', 'Full Data Export & Backups', 'Dedicated Account Manager'],
+    status: 'active',
+    description: 'Ultimate long-term partnership with maximum discount.'
+  }
+];
+
+// ==========================================
+// 2. PAYMENT ARCHITECTURE TYPES
+// ==========================================
+
+export type PaymentProvider = 'Telebirr' | 'CBE Birr' | 'M-Pesa' | 'Bank Transfer' | 'Card' | 'Cash' | 'Direct';
+export type PaymentStatus = 'completed' | 'pending' | 'failed' | 'refunded';
+
+export interface SaaSOrganizationPayment {
+  id: string; // paymentId
+  organizationId: string;
+  subscriptionId?: string;
+  amount: number;
+  currency: 'ETB' | 'USD';
+  planId: string;
+  billingPeriod: BillingPeriod | string;
+  status: PaymentStatus;
+  paymentProvider: PaymentProvider;
+  transactionReference: string;
+  paidAt: string;
+  createdAt: string;
+  recordedBy?: string; // e.g. "Super Admin" or gateway webhook
+  notes?: string;
+}
+
+// ==========================================
+// 3. ADVERTISEMENT SYSTEM TYPES
+// ==========================================
+
+export type AdTargetAudience = 'all' | 'trial_only' | 'paid_only';
+export type AdSlotPosition = 'slot_1' | 'slot_2' | 'slot_3' | 'all';
+export type AdMediaType = 'image' | 'video' | 'banner';
+export type AdStatus = 'active' | 'paused' | 'expired';
+
+export interface Advertisement {
+  id: string;
+  title: string;
+  companyName: string;
+  description: string;
+  imageUrl?: string;
+  videoUrl?: string;
+  destinationUrl: string;
+  contactPhone?: string;
+  ctaText: string;
+  startDate: string; // ISO
+  endDate: string; // ISO
+  status: AdStatus;
+  targetAudience: AdTargetAudience;
+  targetPlanId?: string;
+  targetOrganizationId?: string;
+  slotPosition: AdSlotPosition;
+  mediaType: AdMediaType;
+  impressionsCount: number;
+  clicksCount: number;
+  revenueGenerated: number;
+  createdAt: string;
+}
+
+export interface AdAnalyticsRecord {
+  id: string;
+  adId: string;
+  organizationId: string;
+  eventType: 'impression' | 'click';
+  slotPosition: string;
+  timestamp: string;
+}
+
+// ==========================================
+// 4. AUDIT & ACTIVITY LOG TYPES
+// ==========================================
+
+export interface ActivityLog {
+  id: string;
+  userId: string;
+  userName: string;
+  organizationId?: string;
+  action: string;
+  description: string;
+  timestamp: string;
+}
+
+// ==========================================
+// 5. USER ROLES & SAAS AUTHENTICATION
+// ==========================================
+
+export type SaaSRole = 
+  | 'SUPER_ADMIN' 
+  | 'SALON_OWNER' 
+  | 'MANAGER' 
+  | 'RECEPTIONIST' 
+  | 'STYLIST' 
+  | 'CASHIER' 
+  | 'ACCOUNTANT' 
+  | 'INVENTORY';
+
+export interface SaaSUser {
+  uid: string;
+  email: string;
+  displayName: string;
+  phone?: string;
+  organizationId?: string | null; // null for Super Admin
+  role: SaaSRole;
+  status: 'active' | 'suspended';
+  createdAt: string;
+  lastLoginAt?: string;
+}
+
+// Backward compatibility for existing UI role strings
+export type UserRole = 'admin' | 'cashier' | 'inventory' | 'walkin' | 'assistant' | 'superadmin';
+
 // Payment Method enum as specified strictly in instructions
 export type PaymentMethod = 'Telebirr' | 'CBE Birr' | 'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Card';
 
 // Predefined list of typical premium salon services & products
 export interface SalonService {
   id: string;
+  organizationId?: string;
   name: string;
   category: 'Hair' | 'Nails' | 'Skin' | 'Massage' | 'Product';
   defaultPrice: number;
@@ -18,6 +236,7 @@ export interface SalonService {
 
 export interface Customer {
   id: string;
+  organizationId?: string;
   full_name: string;
   phone_number: string;
   birth_date?: string; // Format: YYYY-MM-DD
@@ -27,6 +246,7 @@ export interface Customer {
 
 export interface Visit {
   id: string;
+  organizationId?: string;
   customer_id: string;
   customer_name?: string;
   phone_number?: string;
@@ -52,18 +272,20 @@ export interface CustomerWithRetention extends Customer {
   visitCountInLast30Days: number;
 }
 
-export type UserRole = 'admin' | 'cashier' | 'inventory' | 'walkin' | 'assistant';
-
 export interface StaffMember {
   id: string;
+  organizationId?: string;
   name: string;
-  role: UserRole;
+  role: UserRole | SaaSRole;
   created_at: string;
   password?: string;
+  email?: string;
+  phone?: string;
 }
 
 export interface TreatmentArtist {
   id: string;
+  organizationId?: string;
   name: string;
   skills: string; // e.g., "Hair Coloring, Balayage, Cuts"
   specialty: 'Hair' | 'Nails' | 'Skin' | 'Massage' | 'General';
@@ -77,6 +299,7 @@ export interface CRMData {
 }
 
 export interface SmsTemplates {
+  organizationId?: string;
   welcome_am: string;
   welcome_en: string;
   billing_am: string;
@@ -103,6 +326,7 @@ export function formatSmsTemplate(template: string, placeholders: { name?: strin
 
 export interface BirthdayWish {
   id: string;
+  organizationId?: string;
   customer_id: string;
   customer_name: string;
   customer_phone: string;
@@ -118,6 +342,7 @@ export type QueueStatus = 'waiting' | 'in_service' | 'notified' | 'completed' | 
 
 export interface QueueEntry {
   id: string;
+  organizationId?: string;
   customer_id?: string;
   customer_name: string;
   phone_number: string;
@@ -189,6 +414,7 @@ export type ProductCategoryType = 'single_use' | 'multiple_use';
 
 export interface InventoryProduct {
   id: string;
+  organizationId?: string;
   name: string;
   category_type: ProductCategoryType; // 'single_use' (Consumables) | 'multiple_use' (Bottles/Tubes/Jars)
   category_label?: 'Hair' | 'Nails' | 'Skin' | 'Massage' | 'General';
@@ -204,6 +430,7 @@ export type CheckoutStatus = 'active' | 'completed' | 'returned' | 'flagged';
 
 export interface ActiveProductCheckout {
   id: string;
+  organizationId?: string;
   product_id: string;
   product_name: string;
   stylist_id: string;
@@ -218,6 +445,7 @@ export interface ActiveProductCheckout {
 
 export interface InventoryLog {
   id: string;
+  organizationId?: string;
   product_id: string;
   product_name: string;
   action: 'checkout_single' | 'checkout_multi' | 'service_usage_increment' | 'completed_bottle' | 'restock' | 'flagged_attempt';

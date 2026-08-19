@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Language, CustomerWithRetention, Visit, SalonService, TreatmentArtist } from '../types';
 import { Dict, translateName, translateServiceName } from '../translations';
+import AdSlot from './ads/AdSlot';
 import { AreaChart, TrendingUp, Download, PieChart, Star, Calendar, RefreshCcw, Landmark, CreditCard, DollarSign, ChevronLeft, ChevronRight, Users, Award, Sparkles, Clock } from 'lucide-react';
 
 interface AnalyticsPayload {
@@ -812,6 +813,9 @@ export default function AdminAnalytics({
               })()}
             </div>
           </div>
+
+          {/* Sponsored Ad Slot 2 */}
+          <AdSlot slot="slot_2" className="my-4" />
 
           {/* Export Center Container */}
           <div className="bg-white p-6 rounded-[24px] border border-neutral-200/50 shadow-ios space-y-4" id="target-export-card">

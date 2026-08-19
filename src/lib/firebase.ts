@@ -6,6 +6,8 @@ import {
   persistentSingleTabManager,
   CACHE_SIZE_UNLIMITED
 } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCJbJkcEbJOfiugVmFLnhZ6KrMRTHYryUk",
@@ -17,7 +19,7 @@ const firebaseConfig = {
 };
 
 // Ensure Firebase app is initialized only once
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
 // Database ID — where all production data lives
 const DB_ID = "ai-studio-22086102-239d-4a2c-94c5-673769b61fd8";
@@ -44,6 +46,24 @@ function initDb() {
 }
 
 export const db = initDb();
+export const auth = getAuth(app);
+export const storage = getStorage(app);
+
+// Helper to upload media/logos to Firebase Storage with base64/URL fallback
+export async function uploadToStorage(folder: string, file: File): Promise<string> {
+  try {
+    const fileRef = ref(storage, `${folder}/${Date.now()}_${file.name.replace(/\s+/g, '_')}`);
+    const snapshot = await uploadBytes(fileRef, file);
+    return await getDownloadURL(snapshot.ref);
+  } catch (err) {
+    console.warn("Storage upload fallback to Data URL:", err);
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
+  }
+}
 
 export enum OperationType {
   CREATE = 'create',
