@@ -42,7 +42,7 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
   const [destinationUrl, setDestinationUrl] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [ctaText, setCtaText] = useState('Learn More');
-  const [slotPosition, setSlotPosition] = useState<AdSlotPosition>('slot_1');
+  const [slotPosition, setSlotPosition] = useState<AdSlotPosition>('slot_2');
   const [mediaType, setMediaType] = useState<AdMediaType>('image');
   const [targetAudience, setTargetAudience] = useState<AdTargetAudience>('all');
   const [targetOrgId, setTargetOrgId] = useState<string>('');

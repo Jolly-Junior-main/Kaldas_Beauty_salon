@@ -1583,10 +1583,7 @@ function SalonAppInner() {
         </div>
       )}
 
-      {/* Top Ad Slot 1 Ribbon */}
-      <div className="relative z-20 max-w-[1560px] mx-auto px-3 sm:px-6 lg:px-10 w-full pt-3">
-        <AdSlot slot="slot_1" />
-      </div>
+
 
       {/* Main Luxury Header Bar - Styled with iOS glassmorphic translucency & responsive mobile/tablet layout */}
       <header className="relative z-30 sticky top-0 backdrop-blur-xl bg-white/85 border-b border-neutral-200/80 shadow-sm py-2.5 px-3 sm:px-6 lg:px-10 transition-all">
@@ -3193,10 +3190,7 @@ function SalonAppInner() {
         )
       )}
 
-      {/* Bottom Ad Slot 3 Banner */}
-      <div className="relative z-20 max-w-[1560px] mx-auto px-3 sm:px-6 lg:px-10 w-full mb-6">
-        <AdSlot slot="slot_3" />
-      </div>
+
 
       {/* Premium Footer */}
       <footer className="relative z-10 bg-white/70 backdrop-blur-md border-t border-[#E5D5C8]/80 py-8 px-4 text-center mt-12 shadow-inner">
