@@ -49,10 +49,25 @@ export default function RevenueAnalytics({ organizations }: RevenueAnalyticsProp
     };
   }, []);
 
+  // Subscription Plan Price Matrix
+  const PLAN_PRICES: Record<string, number> = {
+    plan_1m: 3999,
+    plan_3m: 9999,
+    plan_6m: 29999,
+    plan_1y: 39999,
+    plan_2y: 72999
+  };
+
   // Compute Financial Metrics
-  const subscriptionRevenue = payments
+  const paymentsSum = payments
     .filter(p => p.status === 'completed')
     .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+  const activeOrgSubsSum = organizations
+    .filter(o => o.subscriptionStatus === 'active')
+    .reduce((sum, o) => sum + (PLAN_PRICES[o.planId || 'plan_1y'] || 39999), 0);
+
+  const subscriptionRevenue = paymentsSum > 0 ? Math.max(paymentsSum, activeOrgSubsSum) : activeOrgSubsSum;
 
   const adRevenue = ads.reduce((sum, ad) => sum + (Number(ad.revenueGenerated) || 0), 0);
   const totalRevenue = subscriptionRevenue + adRevenue;
@@ -63,13 +78,9 @@ export default function RevenueAnalytics({ organizations }: RevenueAnalyticsProp
   const expiredOrgs = organizations.filter(o => o.subscriptionStatus === 'expired');
 
   const mrr = activePaidOrgs.reduce((sum, o) => {
-    // average monthly rate per plan
-    if (o.planId === 'plan_1m') return sum + 999;
-    if (o.planId === 'plan_3m') return sum + Math.round(2999 / 3);
-    if (o.planId === 'plan_6m') return sum + Math.round(5999 / 6);
-    if (o.planId === 'plan_1y') return sum + Math.round(9999 / 12);
-    if (o.planId === 'plan_2y') return sum + Math.round(17999 / 24);
-    return sum + 833;
+    const price = PLAN_PRICES[o.planId || 'plan_1y'] || 39999;
+    const months = o.planId === 'plan_1m' ? 1 : o.planId === 'plan_3m' ? 3 : o.planId === 'plan_6m' ? 6 : o.planId === 'plan_1y' ? 12 : 24;
+    return sum + Math.round(price / months);
   }, 0);
 
   const arr = mrr * 12;

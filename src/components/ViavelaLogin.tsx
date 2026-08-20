@@ -246,39 +246,39 @@ export default function ViavelaLogin({
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 flex flex-col justify-center items-center p-4 relative overflow-hidden font-sans">
-      {/* Ambient Lighting */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen bg-gradient-to-br from-amber-100/90 via-amber-50/60 to-stone-100 flex flex-col justify-center items-center p-4 relative overflow-hidden font-sans">
+      {/* Bright Ambient Lighting */}
+      <div className="absolute -top-40 -left-40 w-96 h-96 bg-amber-400/25 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-amber-300/30 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Salons with Real Logos Background Wall */}
-      <div className="absolute inset-0 pointer-events-none z-0 opacity-25 overflow-hidden flex flex-col justify-around py-8 select-none">
-        <div className="flex gap-6 justify-around items-center blur-[0.4px] scale-105 transform -rotate-1">
+      {/* Salons with Real Logos Bright Background Wall */}
+      <div className="absolute inset-0 pointer-events-none z-0 opacity-75 overflow-hidden flex flex-col justify-around py-8 select-none">
+        <div className="flex gap-6 justify-around items-center blur-[0.3px] scale-105 transform -rotate-1">
           {displayOrgs.concat(displayOrgs).map((org, i) => (
-            <div key={`${org.id}_bg1_${i}`} className="flex items-center gap-3 bg-neutral-900/90 px-4 py-2.5 rounded-2xl border border-neutral-800/90 shrink-0 shadow-lg">
+            <div key={`${org.id}_bg1_${i}`} className="flex items-center gap-3 bg-white/95 px-4 py-2.5 rounded-2xl border border-amber-300/80 shrink-0 shadow-lg">
               <img 
                 src={org.logoUrl || 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=120&h=120&fit=crop'} 
                 alt={org.salonName} 
-                className="w-10 h-10 rounded-xl object-cover border border-amber-500/40 shrink-0" 
+                className="w-10 h-10 rounded-xl object-cover border-2 border-amber-500/60 shrink-0 shadow-xs" 
               />
               <div className="text-left">
-                <span className="text-xs font-black text-white block">{org.salonName}</span>
-                <span className="text-[10px] text-neutral-400 block">{org.city || 'Addis Ababa'} • {org.ownerName}</span>
+                <span className="text-xs font-black text-neutral-950 block">{org.salonName}</span>
+                <span className="text-[10px] text-amber-800 font-bold block">{org.city || 'Addis Ababa'} • {org.ownerName}</span>
               </div>
             </div>
           ))}
         </div>
-        <div className="flex gap-6 justify-around items-center blur-[0.8px] transform rotate-1">
+        <div className="flex gap-6 justify-around items-center blur-[0.5px] transform rotate-1">
           {displayOrgs.concat(displayOrgs).reverse().map((org, i) => (
-            <div key={`${org.id}_bg2_${i}`} className="flex items-center gap-3 bg-neutral-900/80 px-4 py-2.5 rounded-2xl border border-neutral-800/80 shrink-0 shadow-lg">
+            <div key={`${org.id}_bg2_${i}`} className="flex items-center gap-3 bg-white/90 px-4 py-2.5 rounded-2xl border border-amber-300/70 shrink-0 shadow-lg">
               <img 
                 src={org.logoUrl || 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=120&h=120&fit=crop'} 
                 alt={org.salonName} 
-                className="w-10 h-10 rounded-xl object-cover border border-amber-500/40 shrink-0" 
+                className="w-10 h-10 rounded-xl object-cover border-2 border-amber-500/60 shrink-0 shadow-xs" 
               />
               <div className="text-left">
-                <span className="text-xs font-black text-white block">{org.salonName}</span>
-                <span className="text-[10px] text-neutral-400 block">{org.address || 'Ethiopia'}</span>
+                <span className="text-xs font-black text-neutral-950 block">{org.salonName}</span>
+                <span className="text-[10px] text-amber-800 font-bold block">{org.address || 'Ethiopia'}</span>
               </div>
             </div>
           ))}
@@ -289,23 +289,23 @@ export default function ViavelaLogin({
       <div className="absolute top-6 right-6 flex items-center gap-2 z-10">
         <button
           onClick={() => setLang(lang === 'en' ? 'am' : 'en')}
-          className="px-3.5 py-2 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-bold rounded-2xl border border-neutral-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-md"
+          className="px-3.5 py-2 bg-white/90 hover:bg-white text-neutral-900 text-xs font-bold rounded-2xl border border-amber-300/80 transition-colors flex items-center gap-1.5 cursor-pointer shadow-md"
         >
-          <Globe className="w-3.5 h-3.5 text-amber-400" />
+          <Globe className="w-3.5 h-3.5 text-amber-600" />
           <span>{lang === 'en' ? 'አማርኛ' : 'English'}</span>
         </button>
       </div>
 
       {/* Main Container */}
-      <div className="w-full max-w-lg bg-neutral-900/95 backdrop-blur-xl border border-neutral-800 rounded-[32px] p-6 sm:p-8 shadow-2xl space-y-6 relative z-10 animate-fade-in my-8">
+      <div className="w-full max-w-lg bg-white/95 backdrop-blur-2xl border border-amber-200/80 rounded-[36px] p-6 sm:p-8 shadow-2xl space-y-6 relative z-10 animate-fade-in my-8 text-neutral-900">
         
         {/* Brand Header */}
         <div className="text-center space-y-2">
           <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-amber-500 text-neutral-950 rounded-2xl flex items-center justify-center mx-auto shadow-md font-black text-2xl">
             V
           </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">Viavela CRM</h1>
-          <p className="text-xs text-neutral-400 font-medium">
+          <h1 className="text-2xl font-black text-neutral-950 tracking-tight">Viavela CRM</h1>
+          <p className="text-xs text-neutral-600 font-medium">
             {lang === 'am'
               ? 'የሳሎን ማኔጅመንት እና የደንበኞች ክትትል ሲስተም'
               : 'Multi-Tenant Beauty Salon Operating System'}
@@ -313,7 +313,7 @@ export default function ViavelaLogin({
         </div>
 
         {/* Portal Mode Tabs */}
-        <div className="grid grid-cols-2 p-1.5 bg-neutral-950 rounded-2xl border border-neutral-800 text-xs font-bold">
+        <div className="grid grid-cols-2 p-1.5 bg-neutral-100 rounded-2xl border border-neutral-200 text-xs font-bold">
           <button
             type="button"
             onClick={() => setAuthMode('superadmin')}

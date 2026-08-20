@@ -200,8 +200,8 @@ export default function SalonLogin({
       className="min-h-screen flex items-center justify-center p-4 font-sans antialiased text-[#2D2D2D] selection:bg-[#E5D5C8] bg-cover bg-fixed bg-center relative overflow-hidden"
       style={{ backgroundImage: `url(${salonInterior})` }}
     >
-      {/* Semi-translucent dark backdrop overlay */}
-      <div className="absolute inset-0 bg-neutral-950/50 backdrop-blur-[3px] pointer-events-none z-0" />
+      {/* Bright luxury backdrop overlay */}
+      <div className="absolute inset-0 bg-amber-950/20 backdrop-blur-[2px] pointer-events-none z-0" />
       
       {/* Atmospheric Glow */}
       <div className="absolute top-1/4 -left-20 w-80 h-80 rounded-full bg-white/10 blur-3xl opacity-30 z-0" />
