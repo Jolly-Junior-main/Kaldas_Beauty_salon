@@ -19,7 +19,7 @@ import {
   ShieldCheck,
   Info
 } from 'lucide-react';
-import { DEFAULT_ORG_ID } from '../lib/migration';
+import { DEFAULT_ORG_ID, SEEDED_ORGANIZATIONS } from '../lib/migration';
 
 interface SalonLoginProps {
   salonName?: string;

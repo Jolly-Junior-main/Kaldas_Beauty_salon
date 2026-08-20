@@ -169,11 +169,47 @@ function SalonAppInner() {
   const [allOrgs, setAllOrgs] = useState<any[]>([]);
 
   useEffect(() => {
-    const unsubOrgs = onSnapshot(collection(db, 'organizations'), (snap) => {
-      setAllOrgs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => console.warn('Organizations listener notice:', err));
+    let firestoreOrgs: any[] = [];
+    let settingsOrgs: any[] = [];
 
-    return () => unsubOrgs();
+    const updateCombined = () => {
+      const map = new Map<string, any>();
+      SEEDED_ORGANIZATIONS.forEach(o => map.set(o.id, o));
+      settingsOrgs.forEach(o => map.set(o.id, { ...map.get(o.id), ...o }));
+      firestoreOrgs.forEach(o => map.set(o.id, { ...map.get(o.id), ...o }));
+      try {
+        const local = JSON.parse(localStorage.getItem('viavela_local_orgs') || '[]');
+        local.forEach((o: any) => map.set(o.id, { ...map.get(o.id), ...o }));
+      } catch (e) {}
+
+      const list = Array.from(map.values());
+      list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      setAllOrgs(list);
+    };
+
+    const unsubOrgs = onSnapshot(collection(db, 'organizations'), (snap) => {
+      firestoreOrgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      updateCombined();
+    }, (err) => {
+      console.warn('Organizations listener notice:', err);
+      updateCombined();
+    });
+
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'saas_organizations'), (snap) => {
+      if (snap.exists()) {
+        settingsOrgs = snap.data().list || [];
+        updateCombined();
+      }
+    }, (err) => {
+      console.debug('Settings orgs notice:', err);
+    });
+
+    updateCombined();
+
+    return () => {
+      unsubOrgs();
+      unsubSettings();
+    };
   }, []);
 
   const [username, setUsername] = useState('');
