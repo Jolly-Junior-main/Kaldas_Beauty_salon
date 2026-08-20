@@ -1584,7 +1584,7 @@ function SalonAppInner() {
       )}
 
       {/* Top Ad Slot 1 Ribbon */}
-      <div className="relative z-20 max-w-7xl mx-auto px-3 sm:px-6 lg:px-10 w-full pt-3">
+      <div className="relative z-20 max-w-[1560px] mx-auto px-3 sm:px-6 lg:px-10 w-full pt-3">
         <AdSlot slot="slot_1" />
       </div>
 
@@ -1597,7 +1597,7 @@ function SalonAppInner() {
           style={{ backgroundImage: `url(${salonVector})` }}
         />
 
-        <div className="relative z-10 max-w-7xl mx-auto space-y-2.5">
+        <div className="relative z-10 max-w-[1560px] mx-auto space-y-2.5">
           {/* Top Row: Brand Info, Role Badge & System Control Actions */}
           <div className="flex items-center justify-between gap-2.5">
             
@@ -1850,7 +1850,7 @@ function SalonAppInner() {
       </header>
 
       {/* Main Workspace Frame container */}
-      <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto p-4 md:p-8 space-y-6">
+      <main className="relative z-10 flex-1 max-w-[1560px] w-full mx-auto p-4 md:p-6 lg:p-8 space-y-6">
         
         {/* Real-time Pending Client Payments — visible to Cashier & Admin only */}
         {pendingPayments.length > 0 && (userRole === 'cashier' || userRole === 'admin') && (
@@ -3194,7 +3194,7 @@ function SalonAppInner() {
       )}
 
       {/* Bottom Ad Slot 3 Banner */}
-      <div className="relative z-20 max-w-7xl mx-auto px-3 sm:px-6 lg:px-10 w-full mb-6">
+      <div className="relative z-20 max-w-[1560px] mx-auto px-3 sm:px-6 lg:px-10 w-full mb-6">
         <AdSlot slot="slot_3" />
       </div>
 
