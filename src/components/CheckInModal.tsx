@@ -222,6 +222,8 @@ export default function CheckInModal({
         return `Deselected ${srv ? srv.name : srvId}: "${reason}"`;
       }).join('; ');
 
+      const combinedCashierNotes = [(cashierNotes || '').trim(), (deselectAuditNotes || '').trim()].filter(Boolean).join(' | ');
+
       const activeOrgId = localStorage.getItem('viavela_active_org') || 'org_kaldas_default';
 
       const newVisit: Visit = {
