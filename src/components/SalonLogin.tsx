@@ -49,6 +49,7 @@ export default function SalonLogin({
   const [loginError, setLoginError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const isKaldas = salonId === DEFAULT_ORG_ID || (salonName && salonName.toLowerCase().includes('kaldas'));
   const targetOrg = SEEDED_ORGANIZATIONS.find(o => o.id === salonId);
   const activeLogoUrl = logoUrl || targetOrg?.logoUrl || 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=250&h=250&fit=crop&crop=faces';
 

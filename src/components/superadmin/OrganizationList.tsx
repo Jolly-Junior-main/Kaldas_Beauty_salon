@@ -53,11 +53,12 @@ export default function OrganizationList({
   const [statusFilter, setStatusFilter] = useState<'all' | 'trial' | 'active' | 'expiring_soon' | 'expired' | 'suspended'>('all');
   const [activeMenuOrgId, setActiveMenuOrgId] = useState<string | null>(null);
 
-  // Dynamic days remaining calculator
   const getDaysRemaining = (org: Organization): number => {
-    const targetDate = org.subscriptionStatus === 'trialing' ? org.trialEndDate : org.trialEndDate;
-    if (!targetDate) return 0;
-    const diff = new Date(targetDate).getTime() - Date.now();
+    const targetDate = org.trialEndDate || org.createdAt;
+    if (!targetDate) return 14;
+    const time = new Date(targetDate).getTime();
+    if (isNaN(time)) return 14;
+    const diff = time - Date.now();
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   };
 

@@ -155,7 +155,9 @@ export default function SuperAdminDashboard() {
   const trialOrganizations = organizations.filter(o => o.subscriptionStatus === 'trialing').length;
   
   const getDaysRemaining = (org: Organization): number => {
+    if (!org?.trialEndDate) return 14;
     const end = new Date(org.trialEndDate).getTime();
+    if (isNaN(end)) return 14;
     return Math.max(0, Math.ceil((end - Date.now()) / (1000 * 60 * 60 * 24)));
   };
 

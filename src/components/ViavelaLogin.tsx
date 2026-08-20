@@ -113,8 +113,8 @@ export default function ViavelaLogin({
 
     const cleanUser = (salonUsername || '').trim().toLowerCase();
     const cleanPass = (salonPassword || '').trim();
-    const orgId = activeSelectedSalon.id;
-    const isKaldas = orgId === DEFAULT_ORG_ID || activeSelectedSalon.salonName.toLowerCase().includes('kaldas');
+    const orgId = activeSelectedSalon?.id || DEFAULT_ORG_ID;
+    const isKaldas = orgId === DEFAULT_ORG_ID || (activeSelectedSalon?.salonName || '').toLowerCase().includes('kaldas');
 
     // 1. Built-in Admin & Staff Credentials Check
     if (isKaldas) {
