@@ -1921,7 +1921,10 @@ function SalonAppInner() {
           </div>
         )}
 
-        {activeTab === 'queue' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Main Salon Operating View (Spans 9 columns) */}
+          <div className="lg:col-span-9 space-y-6">
+            {activeTab === 'queue' ? (
 
           <div className="animate-fade-in">
             <QueueDashboard
@@ -3056,6 +3059,13 @@ function SalonAppInner() {
 
           </div>
         )}
+      </div>
+
+      {/* Right Column: Vertical Portrait Advertisement Slot (Visible across all tabs) */}
+      <div className="lg:col-span-3 space-y-6 sticky top-24">
+        <AdSlot slot="slot_2" className="w-full shadow-lg" />
+      </div>
+    </div>
 
       </main>
 

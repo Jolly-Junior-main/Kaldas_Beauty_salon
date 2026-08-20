@@ -139,6 +139,73 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
     }
   };
 
+  const [editingAd, setEditingAd] = useState<Advertisement | null>(null);
+
+  const handleOpenEditModal = (ad: Advertisement) => {
+    setEditingAd(ad);
+    setTitle(ad.title || '');
+    setCompanyName(ad.companyName || '');
+    setDescription(ad.description || '');
+    setDestinationUrl(ad.destinationUrl || '');
+    setContactPhone(ad.contactPhone || '');
+    setCtaText(ad.ctaText || 'Learn More');
+    setSlotPosition(ad.slotPosition || 'slot_1');
+    setMediaType(ad.mediaType || 'image');
+    setTargetAudience(ad.targetAudience || 'all');
+    setTargetOrgId(ad.targetOrganizationId || '');
+    setCampaignPrice(ad.revenueGenerated || 1500);
+    setMediaUrlInput(ad.imageUrl || '');
+    setVideoUrlInput(ad.videoUrl || '');
+    setSlideshowUrls((ad.imagesList || []).join('\n'));
+    setMediaFile(null);
+    setMediaPreview(ad.imageUrl || '');
+  };
+
+  const handleUpdateAd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAd) return;
+    setIsSaving(true);
+    try {
+      let uploadedUrl = mediaUrlInput.trim();
+      if (mediaFile) {
+        try {
+          uploadedUrl = await uploadToStorage('ad_media', mediaFile);
+        } catch (err) {
+          uploadedUrl = mediaPreview;
+        }
+      }
+      if (!uploadedUrl) {
+        uploadedUrl = mediaPreview || editingAd.imageUrl || 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&h=450&fit=crop';
+      }
+      const parsedSlideshow = slideshowUrls.split('\n').map(s => s.trim()).filter(Boolean);
+
+      const updatedFields: Partial<Advertisement> = {
+        title: title.trim(),
+        companyName: companyName.trim(),
+        description: description.trim(),
+        imageUrl: mediaType === 'image' || mediaType === 'banner' ? uploadedUrl : undefined,
+        videoUrl: mediaType === 'video' ? (videoUrlInput.trim() || uploadedUrl) : (videoUrlInput.trim() || undefined),
+        imagesList: parsedSlideshow.length > 0 ? parsedSlideshow : (uploadedUrl ? [uploadedUrl] : undefined),
+        destinationUrl: destinationUrl.trim() || 'https://viavelacrm.com',
+        contactPhone: contactPhone.trim() || undefined,
+        ctaText: ctaText.trim() || 'Learn More',
+        targetAudience,
+        targetOrganizationId: targetOrgId || undefined,
+        slotPosition,
+        mediaType,
+        revenueGenerated: Number(campaignPrice) || 0
+      };
+
+      await updateDoc(doc(db, 'advertisements', editingAd.id), cleanUndefined(updatedFields));
+      setEditingAd(null);
+    } catch (err) {
+      console.error('Failed to update ad:', err);
+      alert('Error updating campaign.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleToggleStatus = async (ad: Advertisement) => {
     const newStatus = ad.status === 'active' ? 'paused' : 'active';
     await updateDoc(doc(db, 'advertisements', ad.id), { status: newStatus });
@@ -270,17 +337,27 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
                 <div className="pt-3 border-t border-neutral-100 flex items-center justify-between">
                   <button
                     onClick={() => handleToggleStatus(ad)}
-                    className="text-xs font-bold text-neutral-700 hover:text-neutral-900"
+                    className="text-xs font-bold text-neutral-700 hover:text-neutral-900 cursor-pointer"
                   >
                     {ad.status === 'active' ? 'Pause Campaign' : 'Resume'}
                   </button>
 
-                  <button
-                    onClick={() => handleDeleteAd(ad.id)}
-                    className="p-1.5 text-neutral-400 hover:text-red-600 rounded-lg"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleOpenEditModal(ad)}
+                      className="px-2.5 py-1 text-xs font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Edit Ad</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteAd(ad.id)}
+                      className="p-1.5 text-neutral-400 hover:text-red-600 rounded-lg cursor-pointer"
+                      title="Delete Campaign"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))
@@ -502,6 +579,177 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
                   className="px-6 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-neutral-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-40"
                 >
                   {isSaving ? 'Publishing...' : 'Publish Campaign'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Edit Ad Campaign Modal */}
+      {editingAd && (
+        <div className="fixed inset-0 bg-neutral-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto font-sans animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-xl w-full border border-neutral-200 shadow-2xl overflow-hidden my-8">
+            <div className="p-6 bg-gradient-to-r from-neutral-900 via-neutral-950 to-neutral-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-neutral-950 flex items-center justify-center font-black">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black">Edit Advertisement Campaign</h3>
+                  <p className="text-xs text-neutral-400">Modify details, placement, media URLs, or campaign price</p>
+                </div>
+              </div>
+              <button onClick={() => setEditingAd(null)} className="p-1.5 rounded-full hover:bg-neutral-800 text-neutral-400 hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateAd} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-neutral-700">Campaign Title *</label>
+                  <input
+                    type="text"
+                    required
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:border-neutral-900 font-medium"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-neutral-700">Advertiser / Company Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:border-neutral-900 font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold text-neutral-700">Ad Description / Marketing Copy</label>
+                <textarea
+                  rows={2}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full px-3.5 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:border-neutral-900 font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-neutral-700">Ad Slot Placement</label>
+                  <select
+                    value={slotPosition}
+                    onChange={(e) => setSlotPosition(e.target.value as AdSlotPosition)}
+                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-bold"
+                  >
+                    <option value="slot_1">Slot 1 (Header Top Ribbon)</option>
+                    <option value="slot_2">Slot 2 (Vertical Portrait Sidebar)</option>
+                    <option value="slot_3">Slot 3 (Queue & Footer Banner)</option>
+                    <option value="all">All Slots Across CRMs</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-neutral-700">Creative Media Type</label>
+                  <select
+                    value={mediaType}
+                    onChange={(e) => setMediaType(e.target.value as AdMediaType)}
+                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-bold"
+                  >
+                    <option value="image">Image Banner / Slideshow</option>
+                    <option value="video">Video Ad</option>
+                    <option value="banner">Text Banner</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-neutral-700">Campaign Fee (ETB)</label>
+                  <input
+                    type="number"
+                    value={campaignPrice}
+                    onChange={(e) => setCampaignPrice(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-neutral-700">Destination Website URL</label>
+                  <input
+                    type="url"
+                    value={destinationUrl}
+                    onChange={(e) => setDestinationUrl(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:border-neutral-900 font-mono font-medium"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-neutral-700">Call-to-Action Button Text</label>
+                  <input
+                    type="text"
+                    value={ctaText}
+                    onChange={(e) => setCtaText(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:border-neutral-900 font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Media URL / Video / Slideshow Inputs */}
+              <div className="space-y-3 p-3 bg-neutral-50 rounded-2xl border border-neutral-200">
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-neutral-700">Image Asset URL</label>
+                  <input
+                    type="url"
+                    value={mediaUrlInput}
+                    onChange={(e) => setMediaUrlInput(e.target.value)}
+                    placeholder="https://images.unsplash.com/..."
+                    className="w-full px-3 py-1.5 text-xs bg-white border border-neutral-200 rounded-xl font-mono"
+                  />
+                </div>
+
+                {mediaType === 'video' && (
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-bold text-neutral-700">Video Ad URL (MP4 / YouTube Link)</label>
+                    <input
+                      type="url"
+                      value={videoUrlInput}
+                      onChange={(e) => setVideoUrlInput(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs bg-white border border-neutral-200 rounded-xl font-mono"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-neutral-700">Photo Slideshow Image URLs (One URL per line)</label>
+                  <textarea
+                    rows={2}
+                    value={slideshowUrls}
+                    onChange={(e) => setSlideshowUrls(e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs bg-white border border-neutral-200 rounded-xl font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 flex items-center justify-end gap-2 border-t border-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingAd(null)}
+                  className="px-4 py-2.5 text-xs font-bold text-neutral-600 hover:text-neutral-900"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving || !title || !companyName}
+                  className="px-6 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-neutral-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-40"
+                >
+                  {isSaving ? 'Updating...' : 'Save Campaign Changes'}
                 </button>
               </div>
             </form>

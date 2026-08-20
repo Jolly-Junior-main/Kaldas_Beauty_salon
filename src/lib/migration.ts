@@ -330,16 +330,27 @@ export async function runSaaSMigrationIfNeeded(): Promise<void> {
       } catch (e) {}
     }
 
-    // 3. Dual-persistence backup in `settings/saas_organizations`
+    // 3. Dual-persistence backup in `settings/saas_organizations` (Preserve & Merge custom created salons)
     try {
       const settingsRef = doc(db, 'settings', 'saas_organizations');
-      await setDoc(settingsRef, { list: SEEDED_ORGANIZATIONS }, { merge: true });
-    } catch (e) {}
+      const snap = await getDoc(settingsRef);
+      const existingSettingsList: Organization[] = snap.exists() ? (snap.data().list || []) : [];
+      
+      const map = new Map<string, Organization>();
+      SEEDED_ORGANIZATIONS.forEach(o => map.set(o.id, o));
+      existingSettingsList.forEach(o => map.set(o.id, { ...map.get(o.id), ...o }));
+      
+      try {
+        const localList = JSON.parse(localStorage.getItem('viavela_local_orgs') || '[]');
+        localList.forEach((o: Organization) => map.set(o.id, { ...map.get(o.id), ...o }));
+      } catch (e) {}
 
-    // 4. Local storage backup
-    try {
-      localStorage.setItem('viavela_local_orgs', JSON.stringify(SEEDED_ORGANIZATIONS));
-    } catch (e) {}
+      const combinedList = Array.from(map.values());
+      await setDoc(settingsRef, { list: combinedList }, { merge: true });
+      localStorage.setItem('viavela_local_orgs', JSON.stringify(combinedList));
+    } catch (e) {
+      console.warn('Migration settings merge notice:', e);
+    }
 
     // 5. Bootstrap Subscription Plans in Firestore
     for (const plan of PREDEFINED_SUBSCRIPTION_PLANS) {
