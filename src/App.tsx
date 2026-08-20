@@ -33,7 +33,7 @@ import BirthdayWishModal from './components/BirthdayWishModal';
 import CustomBroadcaster from './components/CustomBroadcaster';
 import NotificationDrawer, { AdminPaymentAlert } from './components/NotificationDrawer';
 import { TenantProvider, useTenant } from './lib/tenantContext';
-import { runSaaSMigrationIfNeeded, DEFAULT_ORG_ID } from './lib/migration';
+import { runSaaSMigrationIfNeeded, DEFAULT_ORG_ID, SEEDED_ORGANIZATIONS } from './lib/migration';
 import SuperAdminDashboard from './components/superadmin/SuperAdminDashboard';
 import ViavelaLogin from './components/ViavelaLogin';
 import SalonLogin from './components/SalonLogin';

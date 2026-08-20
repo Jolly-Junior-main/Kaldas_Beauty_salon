@@ -139,6 +139,12 @@ export const SEEDED_ORGANIZATIONS: Organization[] = [
   }
 ];
 
+// Global window fallback binding to prevent unhandled ReferenceErrors
+if (typeof window !== 'undefined') {
+  (window as any).DEFAULT_ORG_ID = DEFAULT_ORG_ID;
+  (window as any).SEEDED_ORGANIZATIONS = SEEDED_ORGANIZATIONS;
+}
+
 /**
  * Initializes all subscription plans and 6 rich beauty salon organizations
  * with complete CRM datasets (services, inventory, staff, artists, payments).
