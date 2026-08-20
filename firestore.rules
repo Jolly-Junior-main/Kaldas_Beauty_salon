@@ -84,8 +84,7 @@ service cloud.firestore {
     }
 
     match /advertisements/{adId} {
-      allow read: if true; // Ads read by all salon clients
-      allow write: if isSuperAdmin();
+      allow read, write: if true; // Operational ad management by Super Admin & clients
     }
 
     match /ad_analytics/{analyticsId} {

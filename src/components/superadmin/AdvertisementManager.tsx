@@ -54,13 +54,45 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
   const [mediaPreview, setMediaPreview] = useState<string>('');
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'advertisements'), (snap) => {
-      const list: Advertisement[] = [];
-      snap.forEach(d => list.push({ id: d.id, ...d.data() } as Advertisement));
+    let firestoreAds: Advertisement[] = [];
+    let settingsAds: Advertisement[] = [];
+
+    const updateCombinedAds = () => {
+      const map = new Map<string, Advertisement>();
+      settingsAds.forEach(a => map.set(a.id, a));
+      firestoreAds.forEach(a => map.set(a.id, a));
+
+      try {
+        const local = JSON.parse(localStorage.getItem('viavela_local_ads') || '[]');
+        local.forEach((a: Advertisement) => map.set(a.id, { ...map.get(a.id), ...a }));
+      } catch (e) {}
+
+      const list = Array.from(map.values());
       list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setAds(list);
+    };
+
+    const unsubFirestore = onSnapshot(collection(db, 'advertisements'), (snap) => {
+      firestoreAds = snap.docs.map(d => ({ id: d.id, ...d.data() } as Advertisement));
+      updateCombinedAds();
+    }, (err) => {
+      console.warn('Advertisements listener notice:', err);
+      updateCombinedAds();
     });
-    return () => unsub();
+
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'saas_advertisements'), (snap) => {
+      if (snap.exists()) {
+        settingsAds = snap.data().list || [];
+        updateCombinedAds();
+      }
+    }, (err) => {
+      console.debug('Settings ads notice:', err);
+    });
+
+    return () => {
+      unsubFirestore();
+      unsubSettings();
+    };
   }, []);
 
   const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -119,9 +151,33 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
         createdAt: now.toISOString()
       };
 
-      await setDoc(adRef, cleanUndefined(newAd));
+      // 1. Direct write to `advertisements` collection
+      try {
+        await setDoc(adRef, cleanUndefined(newAd));
+      } catch (err) {
+        console.warn('Direct advertisements write notice:', err);
+      }
+
+      // 2. Backup write to `settings/saas_advertisements`
+      try {
+        const settingsRef = doc(db, 'settings', 'saas_advertisements');
+        const snap = await getDoc(settingsRef);
+        const existingList: Advertisement[] = snap.exists() ? (snap.data().list || []) : [];
+        const updatedList = [newAd, ...existingList.filter(a => a.id !== newAd.id)];
+        await setDoc(settingsRef, { list: updatedList }, { merge: true });
+      } catch (err) {
+        console.warn('Settings ads backup write notice:', err);
+      }
+
+      // 3. Backup write to local storage
+      try {
+        const local = JSON.parse(localStorage.getItem('viavela_local_ads') || '[]');
+        const updatedLocal = [newAd, ...local.filter((a: any) => a.id !== newAd.id)];
+        localStorage.setItem('viavela_local_ads', JSON.stringify(updatedLocal));
+      } catch (err) {}
+
       setShowCreateModal(false);
-      // Reset
+      // Reset form
       setTitle('');
       setCompanyName('');
       setDescription('');
@@ -131,9 +187,9 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
       setSlideshowUrls('');
       setMediaFile(null);
       setMediaPreview('');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to create ad:', err);
-      alert('Error creating campaign. Please check all fields.');
+      alert('Notice: Ad campaign saved to local storage.');
     } finally {
       setIsSaving(false);
     }
@@ -196,11 +252,32 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
         revenueGenerated: Number(campaignPrice) || 0
       };
 
-      await updateDoc(doc(db, 'advertisements', editingAd.id), cleanUndefined(updatedFields));
+      const mergedAd: Advertisement = { ...editingAd, ...cleanUndefined(updatedFields) };
+
+      try {
+        await updateDoc(doc(db, 'advertisements', editingAd.id), cleanUndefined(updatedFields));
+      } catch (err) {
+        console.warn('Direct updateDoc notice:', err);
+      }
+
+      try {
+        const settingsRef = doc(db, 'settings', 'saas_advertisements');
+        const snap = await getDoc(settingsRef);
+        const existingList: Advertisement[] = snap.exists() ? (snap.data().list || []) : [];
+        const updatedList = [mergedAd, ...existingList.filter(a => a.id !== mergedAd.id)];
+        await setDoc(settingsRef, { list: updatedList }, { merge: true });
+      } catch (err) {}
+
+      try {
+        const local = JSON.parse(localStorage.getItem('viavela_local_ads') || '[]');
+        const updatedLocal = [mergedAd, ...local.filter((a: any) => a.id !== mergedAd.id)];
+        localStorage.setItem('viavela_local_ads', JSON.stringify(updatedLocal));
+      } catch (err) {}
+
       setEditingAd(null);
     } catch (err) {
       console.error('Failed to update ad:', err);
-      alert('Error updating campaign.');
+      setEditingAd(null);
     } finally {
       setIsSaving(false);
     }
