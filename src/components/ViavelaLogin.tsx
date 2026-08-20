@@ -18,7 +18,8 @@ import {
   EyeOff, 
   ChevronRight,
   Info,
-  CheckCircle2
+  CheckCircle2,
+  Search
 } from 'lucide-react';
 import { DEFAULT_ORG_ID, SEEDED_ORGANIZATIONS } from '../lib/migration';
 
@@ -52,13 +53,27 @@ export default function ViavelaLogin({
   // Available organizations (fallback to seeded if empty)
   const displayOrgs = (organizations && organizations.length > 0) ? organizations : SEEDED_ORGANIZATIONS;
 
-  // Salon Portal Form State
+  // Salon Directory Search & Portal Form State
+  const [salonSearchQuery, setSalonSearchQuery] = useState('');
+  const [showDirectForm, setShowDirectForm] = useState(false);
   const [selectedSalonId, setSelectedSalonId] = useState<string>(DEFAULT_ORG_ID);
   const [salonUsername, setSalonUsername] = useState('');
   const [salonPassword, setSalonPassword] = useState('');
   const [showSalonPassword, setShowSalonPassword] = useState(false);
   const [salonError, setSalonError] = useState('');
   const [isSalonLoggingIn, setIsSalonLoggingIn] = useState(false);
+
+  const filteredOrgs = displayOrgs.filter(org => {
+    if (!salonSearchQuery.trim()) return true;
+    const q = salonSearchQuery.toLowerCase();
+    return (
+      (org.salonName || '').toLowerCase().includes(q) ||
+      (org.city || '').toLowerCase().includes(q) ||
+      (org.address || '').toLowerCase().includes(q) ||
+      (org.ownerName || '').toLowerCase().includes(q) ||
+      (org.phone || '').includes(q)
+    );
+  });
 
   const activeSelectedSalon = displayOrgs.find(o => o.id === selectedSalonId) || displayOrgs[0] || SEEDED_ORGANIZATIONS[0];
 
@@ -359,118 +374,146 @@ export default function ViavelaLogin({
           </form>
         )}
 
-        {/* TAB 2: Salon Staff Direct Sign-In Form with Salon Selector */}
+        {/* TAB 2: Salons Directory Grid & Search Section */}
         {authMode === 'salons' && (
-          <form onSubmit={handleSalonStaffSubmit} className="space-y-4 animate-fade-in">
-            {/* Salon Selection Dropdown / Carousel */}
+          <div className="space-y-4 animate-fade-in">
+            {/* Search Input */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-neutral-300">
-                {lang === 'am' ? 'የሳሎን ስም ይምረጡ' : 'Select Beauty Salon'}
+              <label className="block text-xs font-bold text-neutral-300 flex justify-between items-center">
+                <span>{lang === 'am' ? 'ሳሎኖችን በስም ወይም በቦታ ይፈልጉ' : 'Search Salon Directory'}</span>
+                <span className="text-[10px] text-amber-400 font-mono font-normal">
+                  {filteredOrgs.length} salon(s) available
+                </span>
               </label>
-              <select
-                value={selectedSalonId}
-                onChange={(e) => {
-                  setSelectedSalonId(e.target.value);
-                  setSalonError('');
-                }}
-                className="w-full px-3.5 py-2.5 bg-neutral-950 border border-neutral-750 text-white rounded-xl text-xs font-bold focus:outline-none focus:border-amber-500 cursor-pointer"
-              >
-                {displayOrgs.map(org => (
-                  <option key={org.id} value={org.id}>
-                    {org.salonName} ({org.city || 'Addis Ababa'} - {org.status === 'active' ? 'Active' : 'Trial'})
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <Search className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={salonSearchQuery}
+                  onChange={(e) => setSalonSearchQuery(e.target.value)}
+                  placeholder={lang === 'am' ? 'የሳሎን ስም፣ ቦታ ወይም ባለቤት ይፈልጉ...' : 'Search by salon name, city, location, owner...'}
+                  className="w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-800 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500 font-medium transition-colors"
+                />
+              </div>
             </div>
 
-            {/* Active Selected Salon Pill Card */}
-            <div className="p-3 bg-neutral-950/80 rounded-2xl border border-neutral-800 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-amber-500 text-neutral-950 flex items-center justify-center font-black text-sm shrink-0">
-                  {activeSelectedSalon.salonName[0].toUpperCase()}
+            {/* List of Salons by Logo and Name */}
+            <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+              {filteredOrgs.length === 0 ? (
+                <div className="p-6 bg-neutral-950/60 rounded-2xl border border-neutral-800 text-center text-xs text-neutral-400">
+                  {lang === 'am' ? 'ምንም ሳሎን አልተገኘም' : 'No salons found matching your search query.'}
                 </div>
-                <div>
-                  <h4 className="text-xs font-black text-white">{activeSelectedSalon.salonName}</h4>
-                  <p className="text-[10px] text-neutral-400">Owner: {activeSelectedSalon.ownerName} • {activeSelectedSalon.city}</p>
-                </div>
-              </div>
+              ) : (
+                filteredOrgs.map((org) => (
+                  <div
+                    key={org.id}
+                    onClick={() => onOpenSalonLogin(org.id, org.salonName, org.logoUrl)}
+                    className="p-3.5 bg-neutral-950/90 hover:bg-neutral-900 border border-neutral-800 hover:border-amber-500/60 rounded-2xl transition-all cursor-pointer flex items-center justify-between group shadow-sm"
+                  >
+                    <div className="flex items-center gap-3.5">
+                      {org.logoUrl ? (
+                        <img
+                          src={org.logoUrl}
+                          alt={org.salonName}
+                          className="w-12 h-12 rounded-2xl object-cover border border-amber-500/40 shadow-xs shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-neutral-950 font-black text-lg flex items-center justify-center shadow-xs shrink-0">
+                          {org.salonName[0].toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="text-xs font-black text-white group-hover:text-amber-400 transition-colors">
+                          {org.salonName}
+                        </h3>
+                        <p className="text-[11px] text-neutral-400 mt-0.5">
+                          {org.address ? org.address : (org.city || 'Addis Ababa')} • Owner: {org.ownerName}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[9.5px] font-black uppercase ${
+                        org.status === 'active' 
+                          ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/80' 
+                          : 'bg-amber-950/80 text-amber-400 border border-amber-800/80'
+                      }`}>
+                        {org.status === 'active' ? 'Active' : '14d Trial'}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-neutral-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Quick Sign-In Form Accordion Expander */}
+            <div className="pt-2 border-t border-neutral-850">
               <button
                 type="button"
-                onClick={() => onOpenSalonLogin(activeSelectedSalon.id, activeSelectedSalon.salonName, activeSelectedSalon.logoUrl)}
-                className="text-[10px] text-amber-400 hover:underline font-bold"
+                onClick={() => setShowDirectForm(!showDirectForm)}
+                className="w-full text-[11px] font-bold text-neutral-400 hover:text-amber-400 flex items-center justify-center gap-1 cursor-pointer transition-colors"
               >
-                Full Screen Branded Portal →
+                <span>{showDirectForm ? 'Hide Quick Credential Inputs ▲' : 'or enter credentials directly here ▼'}</span>
               </button>
             </div>
 
-            {/* Username input */}
-            <div className="space-y-1">
-              <label className="block text-xs font-bold text-neutral-300">
-                {lang === 'am' ? 'የሰራተኛ ወይም የአድሚን ተጠቃሚ ስም' : 'Staff / Admin Username'}
-              </label>
-              <div className="relative">
-                <User className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  required
-                  value={salonUsername}
-                  onChange={(e) => setSalonUsername(e.target.value)}
-                  placeholder={selectedSalonId === DEFAULT_ORG_ID ? 'e.g. Sara or Admin1 or Cashier1' : 'e.g. Owner or Cashier1'}
-                  className="w-full pl-10 pr-4 py-2.5 bg-neutral-950/80 border border-neutral-800 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500 font-medium transition-colors"
-                />
-              </div>
-            </div>
+            {/* Direct Form inside Expander */}
+            {showDirectForm && (
+              <form onSubmit={handleSalonStaffSubmit} className="space-y-3 pt-2 border-t border-neutral-800 animate-fade-in">
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-neutral-300">Select Salon</label>
+                  <select
+                    value={selectedSalonId}
+                    onChange={(e) => setSelectedSalonId(e.target.value)}
+                    className="w-full px-3 py-2 bg-neutral-950 border border-neutral-800 text-white rounded-xl text-xs font-bold focus:outline-none focus:border-amber-500 cursor-pointer"
+                  >
+                    {displayOrgs.map(org => (
+                      <option key={org.id} value={org.id}>{org.salonName}</option>
+                    ))}
+                  </select>
+                </div>
 
-            {/* Password input */}
-            <div className="space-y-1">
-              <label className="block text-xs font-bold text-neutral-300">
-                {lang === 'am' ? 'የይለፍ ቃል' : 'Password'}
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type={showSalonPassword ? 'text' : 'password'}
-                  required
-                  value={salonPassword}
-                  onChange={(e) => setSalonPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-10 py-2.5 bg-neutral-950/80 border border-neutral-800 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500 font-mono font-medium transition-colors"
-                />
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-neutral-300">Staff / Admin Username</label>
+                  <input
+                    type="text"
+                    required
+                    value={salonUsername}
+                    onChange={(e) => setSalonUsername(e.target.value)}
+                    placeholder="e.g. Sara or Admin1 or Cashier1"
+                    className="w-full px-3 py-2 bg-neutral-950 border border-neutral-800 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500 font-medium"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-neutral-300">Password</label>
+                  <input
+                    type="password"
+                    required
+                    value={salonPassword}
+                    onChange={(e) => setSalonPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-3 py-2 bg-neutral-950 border border-neutral-800 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500 font-mono font-medium"
+                  />
+                </div>
+
+                {salonError && (
+                  <div className="p-2.5 bg-red-950/50 border border-red-800/80 rounded-xl text-red-300 text-xs font-medium text-center">
+                    ⚠️ {salonError}
+                  </div>
+                )}
+
                 <button
-                  type="button"
-                  onClick={() => setShowSalonPassword(!showSalonPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 p-1"
+                  type="submit"
+                  disabled={isSalonLoggingIn}
+                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black text-xs rounded-xl shadow-md cursor-pointer"
                 >
-                  {showSalonPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {isSalonLoggingIn ? 'Signing In...' : `Sign In to ${activeSelectedSalon.salonName}`}
                 </button>
-              </div>
-            </div>
-
-            {salonError && (
-              <div className="p-3 bg-red-950/50 border border-red-800/80 rounded-xl text-red-300 text-xs font-medium text-center animate-fade-in">
-                ⚠️ {salonError}
-              </div>
+              </form>
             )}
-
-            <button
-              type="submit"
-              disabled={isSalonLoggingIn}
-              className="w-full py-3.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-neutral-950 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer ios-active-scale disabled:opacity-50 mt-1 flex items-center justify-center gap-1.5"
-            >
-              <Building2 className="w-4 h-4" />
-              <span>{isSalonLoggingIn ? 'Signing In...' : `Sign In to ${activeSelectedSalon.salonName}`}</span>
-            </button>
-
-            {/* Credential Reference Note */}
-            <div className="p-3 bg-neutral-950/60 rounded-xl border border-neutral-800 text-[11px] text-neutral-400 space-y-1">
-              <span className="font-bold text-amber-400 block">Default Sign-In Accounts for this Salon:</span>
-              <p className="text-[10px] text-neutral-400">
-                • <b>Owner / Admin</b>: User: <code className="text-white bg-neutral-900 px-1 py-0.5 rounded">{selectedSalonId === DEFAULT_ORG_ID ? 'Sara' : 'Owner'}</code> | Pass: <code className="text-white bg-neutral-900 px-1 py-0.5 rounded">Admin1</code><br />
-                • <b>Cashier Desk</b>: User: <code className="text-white bg-neutral-900 px-1 py-0.5 rounded">Cashier1</code> | Pass: <code className="text-white bg-neutral-900 px-1 py-0.5 rounded">Cashier123!</code><br />
-                • <b>Walk-in / Queue</b>: User: <code className="text-white bg-neutral-900 px-1 py-0.5 rounded">Walkin1</code> | Pass: <code className="text-white bg-neutral-900 px-1 py-0.5 rounded">Walkin123!</code>
-              </p>
-            </div>
-          </form>
+          </div>
         )}
 
         {/* Footer info */}
