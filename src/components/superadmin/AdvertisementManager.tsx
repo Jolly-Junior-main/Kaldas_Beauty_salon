@@ -35,6 +35,7 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
   const [activeTab, setActiveTab] = useState<'campaigns' | 'analytics'>('campaigns');
 
   // Form states
+  // Form states
   const [title, setTitle] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [description, setDescription] = useState('');
@@ -46,6 +47,9 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
   const [targetAudience, setTargetAudience] = useState<AdTargetAudience>('all');
   const [targetOrgId, setTargetOrgId] = useState<string>('');
   const [campaignPrice, setCampaignPrice] = useState<number>(1500);
+  const [mediaUrlInput, setMediaUrlInput] = useState('');
+  const [videoUrlInput, setVideoUrlInput] = useState('');
+  const [slideshowUrls, setSlideshowUrls] = useState('');
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string>('');
 
@@ -73,21 +77,33 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
     e.preventDefault();
     setIsSaving(true);
     try {
-      let uploadedUrl = '';
+      let uploadedUrl = mediaUrlInput.trim();
       if (mediaFile) {
-        uploadedUrl = await uploadToStorage('ad_media', mediaFile);
+        try {
+          uploadedUrl = await uploadToStorage('ad_media', mediaFile);
+        } catch (err) {
+          console.warn('Firebase storage notice, using base64 preview:', err);
+          uploadedUrl = mediaPreview;
+        }
       }
 
+      if (!uploadedUrl) {
+        uploadedUrl = mediaPreview || 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&h=450&fit=crop';
+      }
+
+      const parsedSlideshow = slideshowUrls.split('\n').map(s => s.trim()).filter(Boolean);
       const adRef = doc(collection(db, 'advertisements'));
       const now = new Date();
+
       const newAd: Advertisement = {
         id: adRef.id,
         title: title.trim(),
         companyName: companyName.trim(),
         description: description.trim(),
-        imageUrl: mediaType === 'image' || mediaType === 'banner' ? uploadedUrl || mediaPreview || undefined : undefined,
-        videoUrl: mediaType === 'video' ? uploadedUrl || mediaPreview || undefined : undefined,
-        destinationUrl: destinationUrl.trim(),
+        imageUrl: mediaType === 'image' || mediaType === 'banner' ? uploadedUrl : undefined,
+        videoUrl: mediaType === 'video' ? (videoUrlInput.trim() || uploadedUrl) : (videoUrlInput.trim() || undefined),
+        imagesList: parsedSlideshow.length > 0 ? parsedSlideshow : (uploadedUrl ? [uploadedUrl] : undefined),
+        destinationUrl: destinationUrl.trim() || 'https://viavelacrm.com',
         contactPhone: contactPhone.trim() || undefined,
         ctaText: ctaText.trim() || 'Learn More',
         startDate: now.toISOString(),
@@ -110,10 +126,14 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
       setCompanyName('');
       setDescription('');
       setDestinationUrl('');
+      setMediaUrlInput('');
+      setVideoUrlInput('');
+      setSlideshowUrls('');
       setMediaFile(null);
       setMediaPreview('');
     } catch (err) {
       console.error('Failed to create ad:', err);
+      alert('Error creating campaign. Please check all fields.');
     } finally {
       setIsSaving(false);
     }
@@ -418,16 +438,51 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
                 </div>
               </div>
 
-              {/* Upload Media */}
-              <div className="space-y-1 pt-1">
-                <label className="block text-[11px] font-bold text-neutral-700">Ad Creative Image / Asset</label>
-                <div className="flex items-center gap-4">
+              {/* Media URL / Video / Slideshow Inputs */}
+              <div className="space-y-3 p-3 bg-neutral-50 rounded-2xl border border-neutral-200">
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-neutral-700">Image Asset URL (Optional Direct URL)</label>
+                  <input
+                    type="url"
+                    value={mediaUrlInput}
+                    onChange={(e) => setMediaUrlInput(e.target.value)}
+                    placeholder="https://images.unsplash.com/... or image link"
+                    className="w-full px-3 py-1.5 text-xs bg-white border border-neutral-200 rounded-xl font-mono"
+                  />
+                </div>
+
+                {mediaType === 'video' && (
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-bold text-neutral-700">Video Ad URL (MP4 / YouTube Link)</label>
+                    <input
+                      type="url"
+                      value={videoUrlInput}
+                      onChange={(e) => setVideoUrlInput(e.target.value)}
+                      placeholder="https://commondatastorage... or YouTube video URL"
+                      className="w-full px-3 py-1.5 text-xs bg-white border border-neutral-200 rounded-xl font-mono"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-neutral-700">Photo Slideshow Image URLs (One URL per line)</label>
+                  <textarea
+                    rows={2}
+                    value={slideshowUrls}
+                    onChange={(e) => setSlideshowUrls(e.target.value)}
+                    placeholder="https://images.unsplash.com/photo-1&#10;https://images.unsplash.com/photo-2"
+                    className="w-full px-3 py-1.5 text-xs bg-white border border-neutral-200 rounded-xl font-mono"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3 pt-1">
+                  <span className="text-[10px] text-neutral-400 font-bold uppercase">or Upload File:</span>
                   {mediaPreview ? (
-                    <img src={mediaPreview} alt="Preview" className="w-16 h-12 rounded-xl object-cover border border-neutral-200" />
+                    <img src={mediaPreview} alt="Preview" className="w-12 h-10 rounded-lg object-cover border border-neutral-200" />
                   ) : null}
-                  <label className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer">
+                  <label className="px-3 py-1.5 bg-white hover:bg-neutral-100 text-neutral-800 text-[11px] font-bold rounded-xl border border-neutral-300 flex items-center gap-1.5 cursor-pointer">
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Ad Media Image</span>
+                    <span>Upload Local Creative</span>
                     <input type="file" accept="image/*,video/*" onChange={handleMediaChange} className="hidden" />
                   </label>
                 </div>

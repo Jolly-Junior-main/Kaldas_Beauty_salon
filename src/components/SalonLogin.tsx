@@ -49,7 +49,8 @@ export default function SalonLogin({
   const [loginError, setLoginError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isKaldas = salonId === DEFAULT_ORG_ID || (salonName && salonName.toLowerCase().includes('kaldas'));
+  const targetOrg = SEEDED_ORGANIZATIONS.find(o => o.id === salonId);
+  const activeLogoUrl = logoUrl || targetOrg?.logoUrl || 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=250&h=250&fit=crop&crop=faces';
 
   const executeLogin = (userStr: string, passStr: string) => {
     setIsSubmitting(true);
@@ -230,22 +231,14 @@ export default function SalonLogin({
       {/* Main Login Card */}
       <div className="bg-white/95 backdrop-blur-xl rounded-[32px] p-6 sm:p-10 border border-neutral-200/50 shadow-2xl max-w-md w-full shrink-0 space-y-6 relative z-10 animate-fade-in text-center my-8">
         
-        {/* Salon Branding & Logo */}
+        {/* Salon Branding & Real Logo Image */}
         <div className="space-y-2">
           <div className="flex justify-center mb-2">
-            {logoUrl ? (
-              <img 
-                src={logoUrl} 
-                alt={salonName} 
-                className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl object-cover border-2 border-amber-500/40 shadow-xl"
-              />
-            ) : isKaldas ? (
-              <KonjoLogo className="w-24 h-24 sm:w-28 sm:h-28 text-neutral-900 drop-shadow-md" size={112} />
-            ) : (
-              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-br from-amber-400 to-amber-600 text-neutral-950 flex items-center justify-center font-black text-3xl shadow-xl border-2 border-white/50">
-                {salonName ? salonName[0].toUpperCase() : 'S'}
-              </div>
-            )}
+            <img 
+              src={activeLogoUrl} 
+              alt={salonName} 
+              className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl object-cover border-2 border-amber-500/40 shadow-xl"
+            />
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-neutral-900">{salonName}</h1>
           <p className="text-[10px] sm:text-[11px] text-amber-700 font-extrabold uppercase tracking-widest bg-amber-50 py-1 px-3 rounded-full inline-block border border-amber-200/60">

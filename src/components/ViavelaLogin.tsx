@@ -251,6 +251,40 @@ export default function ViavelaLogin({
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
 
+      {/* Salons with Real Logos Background Wall */}
+      <div className="absolute inset-0 pointer-events-none z-0 opacity-25 overflow-hidden flex flex-col justify-around py-8 select-none">
+        <div className="flex gap-6 justify-around items-center blur-[0.4px] scale-105 transform -rotate-1">
+          {displayOrgs.concat(displayOrgs).map((org, i) => (
+            <div key={`${org.id}_bg1_${i}`} className="flex items-center gap-3 bg-neutral-900/90 px-4 py-2.5 rounded-2xl border border-neutral-800/90 shrink-0 shadow-lg">
+              <img 
+                src={org.logoUrl || 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=120&h=120&fit=crop'} 
+                alt={org.salonName} 
+                className="w-10 h-10 rounded-xl object-cover border border-amber-500/40 shrink-0" 
+              />
+              <div className="text-left">
+                <span className="text-xs font-black text-white block">{org.salonName}</span>
+                <span className="text-[10px] text-neutral-400 block">{org.city || 'Addis Ababa'} • {org.ownerName}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-6 justify-around items-center blur-[0.8px] transform rotate-1">
+          {displayOrgs.concat(displayOrgs).reverse().map((org, i) => (
+            <div key={`${org.id}_bg2_${i}`} className="flex items-center gap-3 bg-neutral-900/80 px-4 py-2.5 rounded-2xl border border-neutral-800/80 shrink-0 shadow-lg">
+              <img 
+                src={org.logoUrl || 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=120&h=120&fit=crop'} 
+                alt={org.salonName} 
+                className="w-10 h-10 rounded-xl object-cover border border-amber-500/40 shrink-0" 
+              />
+              <div className="text-left">
+                <span className="text-xs font-black text-white block">{org.salonName}</span>
+                <span className="text-[10px] text-neutral-400 block">{org.address || 'Ethiopia'}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Language Switcher */}
       <div className="absolute top-6 right-6 flex items-center gap-2 z-10">
         <button
