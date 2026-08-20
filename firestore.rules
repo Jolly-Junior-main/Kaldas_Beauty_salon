@@ -1,9 +1,109 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Global access for all collections and documents
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'SUPER_ADMIN' || 
+        request.auth.token.role == 'superadmin' || 
+        request.auth.token.isSuperAdmin == true
+      );
+    }
+
+    function belongsToOrganization(orgId) {
+      return isAuthenticated() && (
+        request.auth.token.organizationId == orgId ||
+        isSuperAdmin()
+      );
+    }
+
+    // 1. Organizations Collection
+    match /organizations/{orgId} {
+      allow read: if true; // Public read for domain resolution & portal logo loading
+      allow write: if isSuperAdmin();
+    }
+
+    // 2. Settings & SaaS Config Collection
+    match /settings/{docId} {
+      allow read, write: if true; // Operational fallback for bootstrap & SaaS migration
+    }
+
+    // 3. Multi-Tenant Core CRM Collections (customers, visits, staff, services, inventory, etc.)
+    match /customers/{customerId} {
+      allow read, write: if isAuthenticated() || isSuperAdmin();
+    }
+
+    match /visits/{visitId} {
+      allow read, write: if isAuthenticated() || isSuperAdmin();
+    }
+
+    match /staff/{staffId} {
+      allow read, write: if isAuthenticated() || isSuperAdmin();
+    }
+
+    match /services/{serviceId} {
+      allow read, write: if isAuthenticated() || isSuperAdmin();
+    }
+
+    match /inventory/{itemId} {
+      allow read, write: if isAuthenticated() || isSuperAdmin();
+    }
+
+    match /checkouts/{checkoutId} {
+      allow read, write: if isAuthenticated() || isSuperAdmin();
+    }
+
+    match /inventory_logs/{logId} {
+      allow read, write: if isAuthenticated() || isSuperAdmin();
+    }
+
+    match /queue/{queueId} {
+      allow read, write: if isAuthenticated() || isSuperAdmin();
+    }
+
+    match /artists/{artistId} {
+      allow read, write: if isAuthenticated() || isSuperAdmin();
+    }
+
+    match /users/{userId} {
+      allow read, write: if isAuthenticated() || isSuperAdmin();
+    }
+
+    // 4. Platform Management Collections
+    match /subscriptions/{subId} {
+      allow read, write: if isAuthenticated() || isSuperAdmin();
+    }
+
+    match /payments/{paymentId} {
+      allow read, write: if isAuthenticated() || isSuperAdmin();
+    }
+
+    match /advertisements/{adId} {
+      allow read: if true; // Ads read by all salon clients
+      allow write: if isSuperAdmin();
+    }
+
+    match /ad_analytics/{analyticsId} {
+      allow create: if true; // Public client tracking
+      allow read, write: if isSuperAdmin();
+    }
+
+    match /activity_logs/{logId} {
+      allow read, write: if isAuthenticated() || isSuperAdmin();
+    }
+
+    match /birthday_wishes/{wishId} {
+      allow read, write: if isAuthenticated() || isSuperAdmin();
+    }
+
+    // Global Catch-all for subcollections
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if isAuthenticated() || isSuperAdmin();
     }
   }
 }

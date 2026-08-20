@@ -17,13 +17,14 @@ interface TenantContextType {
   isSuperAdminImpersonating: boolean;
   userRole: SaaSRole | UserRole | null;
   loggedInUser: string;
+  authToken: string | null;
   isTrialActive: boolean;
   daysRemainingInTrial: number;
   subscriptionStatus: SubscriptionStatus;
   isExpired: boolean;
   switchOrganization: (orgId: string) => void;
   exitImpersonation: () => void;
-  setUserSession: (role: SaaSRole | UserRole, username: string, orgId?: string | null) => void;
+  setUserSession: (role: SaaSRole | UserRole, username: string, orgId?: string | null, token?: string | null) => void;
   logout: () => void;
 }
 
@@ -48,6 +49,10 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
 
   const [loggedInUser, setLoggedInUser] = useState<string>(() => {
     return localStorage.getItem('kaldas_logged_user') || localStorage.getItem('viavela_logged_user') || '';
+  });
+
+  const [authToken, setAuthToken] = useState<string | null>(() => {
+    return localStorage.getItem('viavela_auth_token') || null;
   });
 
   const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'superadmin' || localStorage.getItem('viavela_is_super_admin') === 'true';
@@ -115,9 +120,13 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('viavela_is_impersonating');
   };
 
-  const setUserSession = (role: SaaSRole | UserRole, username: string, orgId?: string | null) => {
+  const setUserSession = (role: SaaSRole | UserRole, username: string, orgId?: string | null, token?: string | null) => {
     setUserRole(role);
     setLoggedInUser(username);
+    if (token) {
+      setAuthToken(token);
+      localStorage.setItem('viavela_auth_token', token);
+    }
     const isSA = role === 'SUPER_ADMIN' || role === 'superadmin';
 
     localStorage.setItem('kaldas_logged_in', 'true');
@@ -146,6 +155,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     localStorage.clear();
     setUserRole(null);
     setLoggedInUser('');
+    setAuthToken(null);
     setIsSuperAdminImpersonating(false);
     window.location.reload();
   };
@@ -158,6 +168,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       isSuperAdminImpersonating,
       userRole,
       loggedInUser,
+      authToken,
       isTrialActive,
       daysRemainingInTrial,
       subscriptionStatus,

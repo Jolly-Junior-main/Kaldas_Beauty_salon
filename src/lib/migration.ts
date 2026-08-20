@@ -329,7 +329,15 @@ export async function runSaaSMigrationIfNeeded(): Promise<void> {
       localStorage.setItem('viavela_local_orgs', JSON.stringify(SEEDED_ORGANIZATIONS));
     } catch (e) {}
 
-    // 5. Create Initial Super Admin Profile in `users` collection
+    // 5. Bootstrap Subscription Plans in Firestore
+    for (const plan of PREDEFINED_SUBSCRIPTION_PLANS) {
+      try {
+        const planRef = doc(db, 'subscriptionPlans', plan.id);
+        await setDoc(planRef, cleanUndefined(plan), { merge: true });
+      } catch (e) {}
+    }
+
+    // 6. Create Initial Super Admin Profile in `users` collection
     try {
       const superAdminRef = doc(db, 'users', 'super_admin_master');
       await setDoc(superAdminRef, cleanUndefined({
@@ -343,7 +351,7 @@ export async function runSaaSMigrationIfNeeded(): Promise<void> {
       }), { merge: true });
     } catch (e) {}
 
-    console.info('✅ Viavela SaaS Multi-Tenant Bootstrapping Completed: 6 Salons Initialized.');
+    console.info('✅ Viavela SaaS Multi-Tenant Bootstrapping Completed: 6 Salons & Subscription Plans Initialized.');
   } catch (err) {
     console.error('Migration error:', err);
   }

@@ -70,7 +70,7 @@ export const PREDEFINED_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     id: 'plan_1m',
     name: '1 Month',
     durationMonths: 1,
-    price: 999,
+    price: 3999,
     features: ['Unlimited Clients & Visits', 'Smart Queue System', 'Real-time SMS Alerts', 'Inventory Tracking', 'Standard Support'],
     status: 'active',
     description: 'Perfect for getting started with modern salon automation.'
@@ -79,7 +79,7 @@ export const PREDEFINED_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     id: 'plan_3m',
     name: '3 Months',
     durationMonths: 3,
-    price: 2999,
+    price: 9999,
     features: ['Everything in 1 Month', 'Detailed Financial Reports', 'Multi-Stylist Commission Tracking', 'Priority Support'],
     status: 'active',
     description: 'Quarterly peace of mind with complete salon intelligence.'
@@ -88,7 +88,7 @@ export const PREDEFINED_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     id: 'plan_6m',
     name: '6 Months',
     durationMonths: 6,
-    price: 5999,
+    price: 29999,
     features: ['Everything in 3 Months', 'Customer Retention AI Analytics', 'Product Usage Alerts', 'Dedicated Onboarding'],
     status: 'active',
     description: 'High value growth plan for established salons.'
@@ -97,7 +97,7 @@ export const PREDEFINED_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     id: 'plan_1y',
     name: '1 Year',
     durationMonths: 12,
-    price: 9999,
+    price: 39999,
     features: ['All Premium Features Included', 'Unlimited Staff & Stylists', 'Zero Ad Distractions', '24/7 VIP Phone Support', 'Annual Savings'],
     status: 'active',
     description: 'Most Popular! Complete salon solution with maximum annual savings.'
@@ -106,7 +106,7 @@ export const PREDEFINED_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     id: 'plan_2y',
     name: '2 Years',
     durationMonths: 24,
-    price: 17999,
+    price: 72999,
     features: ['Lifetime Legacy Rate Guarantee', 'Enterprise Customizations', 'Full Data Export & Backups', 'Dedicated Account Manager'],
     status: 'active',
     description: 'Ultimate long-term partnership with maximum discount.'

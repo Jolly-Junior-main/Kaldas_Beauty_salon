@@ -3,6 +3,7 @@ import { pgTable, text, doublePrecision, timestamp, jsonb } from 'drizzle-orm/pg
 // 1. Services / Treatments
 export const services = pgTable('services', {
   id: text('id').primaryKey(),
+  organizationId: text('organization_id').default('org_kaldas_default'),
   name: text('name').notNull(),
   category: text('category').notNull(), // 'Hair' | 'Nails' | 'Skin' | 'Massage' | 'Product'
   defaultPrice: doublePrecision('default_price').notNull(),
@@ -11,8 +12,9 @@ export const services = pgTable('services', {
 // 2. Customers
 export const customers = pgTable('customers', {
   id: text('id').primaryKey(),
+  organizationId: text('organization_id').default('org_kaldas_default'),
   full_name: text('full_name').notNull(),
-  phone_number: text('phone_number').notNull().unique(),
+  phone_number: text('phone_number').notNull(),
   birth_date: text('birth_date'), // Format: YYYY-MM-DD
   created_at: text('created_at').notNull(), // ISO string format matching original
   notes_preferences: text('notes_preferences'),
@@ -21,6 +23,7 @@ export const customers = pgTable('customers', {
 // 3. Visits
 export const visits = pgTable('visits', {
   id: text('id').primaryKey(),
+  organizationId: text('organization_id').default('org_kaldas_default'),
   customer_id: text('customer_id')
     .references(() => customers.id, { onDelete: 'cascade' })
     .notNull(),
@@ -33,8 +36,9 @@ export const visits = pgTable('visits', {
 // 4. Staff members
 export const staff = pgTable('staff', {
   id: text('id').primaryKey(),
+  organizationId: text('organization_id').default('org_kaldas_default'),
   name: text('name').notNull(),
-  role: text('role').notNull(), // 'cashier' | 'assistant'
-  password: text('password').notNull(), // To satisfy requirements for staff login
+  role: text('role').notNull(), // 'cashier' | 'assistant' | 'admin' | 'inventory'
+  password: text('password').notNull(), // Hashed or secure staff password
   created_at: text('created_at').notNull(),
 });
