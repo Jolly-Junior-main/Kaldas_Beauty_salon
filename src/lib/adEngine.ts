@@ -56,6 +56,8 @@ class AdEngine {
         timestamp: new Date().toISOString()
       };
       await setDoc(eventRef, cleanUndefined(record));
+
+      window.dispatchEvent(new CustomEvent('viavela_ad_updated', { detail: { adId: ad.id, type: 'impression' } }));
     } catch (err) {
       console.warn('Ad impression tracking notice:', err);
     }
@@ -102,6 +104,8 @@ class AdEngine {
         timestamp: new Date().toISOString()
       };
       await setDoc(eventRef, cleanUndefined(record));
+
+      window.dispatchEvent(new CustomEvent('viavela_ad_updated', { detail: { adId: ad.id, type: 'click' } }));
     } catch (err) {
       console.warn('Ad click tracking notice:', err);
     }

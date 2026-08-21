@@ -89,7 +89,16 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
       console.debug('Settings ads notice:', err);
     });
 
+    const handleAdUpdatedEvent = () => {
+      updateCombinedAds();
+    };
+
+    window.addEventListener('viavela_ad_updated', handleAdUpdatedEvent);
+    window.addEventListener('storage', handleAdUpdatedEvent);
+
     return () => {
+      window.removeEventListener('viavela_ad_updated', handleAdUpdatedEvent);
+      window.removeEventListener('storage', handleAdUpdatedEvent);
       unsubFirestore();
       unsubSettings();
     };
@@ -175,6 +184,8 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
         const updatedLocal = [newAd, ...local.filter((a: any) => a.id !== newAd.id)];
         localStorage.setItem('viavela_local_ads', JSON.stringify(updatedLocal));
       } catch (err) {}
+
+      window.dispatchEvent(new CustomEvent('viavela_ad_updated', { detail: { adId: newAd.id } }));
 
       setShowCreateModal(false);
       // Reset form

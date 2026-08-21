@@ -92,31 +92,42 @@ export default function AdSlot({ slot = 'slot_2', className = '' }: AdSlotProps)
     let settingsList: Advertisement[] = [];
 
     const combineAndSetAds = () => {
-      const map = new Map<string, Advertisement>();
+      const customAdsMap = new Map<string, Advertisement>();
       
-      // 1. Default partner fallback ads
-      DEFAULT_FALLBACK_ADS.forEach(a => map.set(a.id, a));
-      // 2. Settings document ads
+      // 1. Settings document ads
       settingsList.forEach(a => {
-        if (a.status === 'active' || !a.status) map.set(a.id, a);
+        if (a.status === 'active' || !a.status) customAdsMap.set(a.id, a);
       });
-      // 3. Firestore collection ads
+      // 2. Firestore collection ads
       firestoreList.forEach(a => {
-        if (a.status === 'active' || !a.status) map.set(a.id, a);
+        if (a.status === 'active' || !a.status) customAdsMap.set(a.id, a);
       });
-
-      // 4. Local storage ads
+      // 3. Local storage ads
       try {
         const local = JSON.parse(localStorage.getItem('viavela_local_ads') || '[]');
         local.forEach((a: Advertisement) => {
-          if (a.status === 'active' || !a.status) map.set(a.id, { ...map.get(a.id), ...a });
+          if (a.status === 'active' || !a.status) customAdsMap.set(a.id, { ...customAdsMap.get(a.id), ...a });
         });
       } catch (e) {}
 
-      const list = Array.from(map.values());
+      const finalMap = new Map<string, Advertisement>();
+      if (customAdsMap.size > 0) {
+        customAdsMap.forEach((ad, id) => finalMap.set(id, ad));
+      } else {
+        DEFAULT_FALLBACK_ADS.forEach(a => finalMap.set(a.id, a));
+      }
+
+      const list = Array.from(finalMap.values());
       list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
       setAds(list);
     };
+
+    const handleAdUpdatedEvent = () => {
+      combineAndSetAds();
+    };
+
+    window.addEventListener('viavela_ad_updated', handleAdUpdatedEvent);
+    window.addEventListener('storage', handleAdUpdatedEvent);
 
     const unsubFirestore = onSnapshot(collection(db, 'advertisements'), (snap) => {
       firestoreList = snap.docs.map(d => ({ id: d.id, ...d.data() } as Advertisement));
@@ -136,6 +147,8 @@ export default function AdSlot({ slot = 'slot_2', className = '' }: AdSlotProps)
     });
 
     return () => {
+      window.removeEventListener('viavela_ad_updated', handleAdUpdatedEvent);
+      window.removeEventListener('storage', handleAdUpdatedEvent);
       unsubFirestore();
       unsubSettings();
     };
