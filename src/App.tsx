@@ -121,6 +121,56 @@ function SalonAppInner() {
   const [searchQuery, setSearchQuery] = useState('');
   const [segmentFilter, setSegmentFilter] = useState<'All' | 'Frequent' | 'Occasional' | 'At-Risk'>('All');
   const [activeTab, setActiveTab] = useState<'clients' | 'queue' | 'inventory' | 'analytics' | 'settings' | 'sms-logs'>('queue');
+
+  // --- SEPARATE PAGE ROUTING MAP & HANDLERS ---
+  const PATH_TAB_MAP: Record<string, 'clients' | 'queue' | 'inventory' | 'analytics' | 'settings' | 'sms-logs'> = {
+    '/queue': 'queue',
+    '/clients': 'clients',
+    '/inventory': 'inventory',
+    '/products': 'inventory',
+    '/analytics': 'analytics',
+    '/earnings': 'analytics',
+    '/metrics': 'analytics',
+    '/staff': 'settings',
+    '/settings': 'settings',
+    '/sms': 'sms-logs'
+  };
+
+  const TAB_PATH_MAP: Record<'clients' | 'queue' | 'inventory' | 'analytics' | 'settings' | 'sms-logs', string> = {
+    queue: '/queue',
+    clients: '/clients',
+    inventory: '/inventory',
+    analytics: '/analytics',
+    settings: '/staff',
+    'sms-logs': '/sms'
+  };
+
+  const handleTabChange = (tab: typeof activeTab) => {
+    setActiveTab(tab);
+    const targetPath = TAB_PATH_MAP[tab] || '/queue';
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({}, '', targetPath);
+    }
+  };
+
+  useEffect(() => {
+    const syncTabFromUrl = () => {
+      const pathname = window.location.pathname.toLowerCase().trim();
+      const matchedTab = PATH_TAB_MAP[pathname];
+      if (matchedTab) {
+        setActiveTab(matchedTab);
+      } else if (pathname === '/' || pathname === '') {
+        if (window.location.pathname !== '/queue') {
+          window.history.replaceState({}, '', '/queue');
+        }
+        setActiveTab('queue');
+      }
+    };
+
+    syncTabFromUrl();
+    window.addEventListener('popstate', syncTabFromUrl);
+    return () => window.removeEventListener('popstate', syncTabFromUrl);
+  }, []);
   const [queueEntries, setQueueEntries] = useState<QueueEntry[]>([]);
   const [inventoryProducts, setInventoryProducts] = useState<InventoryProduct[]>([]);
   const [activeCheckouts, setActiveCheckouts] = useState<ActiveProductCheckout[]>([]);
@@ -1700,7 +1750,7 @@ function SalonAppInner() {
             <div className="flex items-center gap-1 bg-neutral-100/90 border border-neutral-200/60 p-1 rounded-full overflow-x-auto scrollbar-none shadow-2xs w-full sm:w-auto">
               {isTabAllowedForRole('queue', userRole) && (
                 <button
-                  onClick={() => setActiveTab('queue')}
+                  onClick={() => handleTabChange('queue')}
                   className={`flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 transition-all ios-active-scale whitespace-nowrap ${
                     activeTab === 'queue'
                       ? 'bg-amber-500 text-neutral-950 shadow-xs'
@@ -1720,7 +1770,7 @@ function SalonAppInner() {
 
               {isTabAllowedForRole('clients', userRole) && (
                 <button
-                  onClick={() => setActiveTab('clients')}
+                  onClick={() => handleTabChange('clients')}
                   className={`flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 transition-all ios-active-scale whitespace-nowrap ${
                     activeTab === 'clients'
                       ? 'bg-neutral-900 text-white shadow-xs'
@@ -1740,7 +1790,7 @@ function SalonAppInner() {
 
               {isTabAllowedForRole('inventory', userRole) && (
                 <button
-                  onClick={() => setActiveTab('inventory')}
+                  onClick={() => handleTabChange('inventory')}
                   className={`flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 transition-all ios-active-scale whitespace-nowrap ${
                     activeTab === 'inventory'
                       ? 'bg-neutral-900 text-white shadow-xs'
@@ -1760,7 +1810,7 @@ function SalonAppInner() {
               
               {isTabAllowedForRole('analytics', userRole) && (
                 <button
-                  onClick={() => setActiveTab('analytics')}
+                  onClick={() => handleTabChange('analytics')}
                   className={`flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 transition-all ios-active-scale whitespace-nowrap ${
                     activeTab === 'analytics'
                       ? 'bg-neutral-900 text-white shadow-xs'
@@ -1776,7 +1826,7 @@ function SalonAppInner() {
               {isTabAllowedForRole('sms-logs', userRole) && (
                 <button
                   onClick={() => {
-                    setActiveTab('sms-logs');
+                    handleTabChange('sms-logs');
                     fetch('/api/sms/logs')
                       .then(res => res.json())
                       .then(data => {
@@ -1798,7 +1848,7 @@ function SalonAppInner() {
 
               {isTabAllowedForRole('settings', userRole) && (
                 <button
-                  onClick={() => setActiveTab('settings')}
+                  onClick={() => handleTabChange('settings')}
                   className={`flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 transition-all ios-active-scale whitespace-nowrap ${
                     activeTab === 'settings'
                       ? 'bg-neutral-900 text-white shadow-xs'
