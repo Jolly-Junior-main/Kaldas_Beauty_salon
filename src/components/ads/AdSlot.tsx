@@ -201,20 +201,20 @@ export default function AdSlot({ slot = 'slot_2', className = '' }: AdSlotProps)
   const ytEmbed = getYouTubeEmbedUrl(activeAd.videoUrl);
 
   return (
-    <div className={`relative bg-neutral-950 border border-neutral-800 rounded-3xl p-4 sm:p-5 text-white shadow-2xl overflow-hidden flex flex-col justify-between min-h-[680px] h-full animate-fade-in ${className}`}>
+    <div className={`relative bg-neutral-950 border border-neutral-800 rounded-[28px] p-4 sm:p-5 text-white shadow-ios overflow-hidden flex flex-col justify-between space-y-3 animate-fade-in ${className}`}>
       
       {/* Top Header: Sponsored Badge & Advertiser Counter Carousel Controller */}
-      <div className="space-y-3 pb-3 border-b border-neutral-800/80">
+      <div className="space-y-2.5 pb-2.5 border-b border-neutral-800/80">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 bg-gradient-to-r from-amber-400 to-amber-500 text-neutral-950 text-[10px] font-black uppercase tracking-wider rounded-lg shadow-sm flex items-center gap-1">
+            <span className="px-2.5 py-0.5 bg-gradient-to-r from-amber-400 to-amber-500 text-neutral-950 text-[10px] font-black uppercase tracking-wider rounded-lg shadow-sm flex items-center gap-1">
               <Megaphone className="w-3 h-3 text-neutral-950" />
               <span>Promotional Showcase</span>
             </span>
           </div>
 
           {/* Advertiser Count Badge */}
-          <div className="flex items-center gap-1 bg-neutral-900 border border-neutral-800 px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold text-amber-400">
+          <div className="flex items-center gap-1 bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold text-amber-400">
             <Layers className="w-3 h-3 text-amber-400" />
             <span>Ad {activeAdIndex + 1}/{ads.length}</span>
           </div>
@@ -222,17 +222,17 @@ export default function AdSlot({ slot = 'slot_2', className = '' }: AdSlotProps)
 
         {/* Manual Advertiser Selector Buttons */}
         {ads.length > 1 && (
-          <div className="flex items-center justify-between pt-1">
+          <div className="flex items-center justify-between pt-0.5">
             <button
               onClick={() => {
                 setActiveAdIndex((prev) => (prev - 1 + ads.length) % ads.length);
                 setCurrentSlideIndex(0);
               }}
-              className="px-2.5 py-1 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white rounded-lg text-[10px] font-bold border border-neutral-800 flex items-center gap-1 cursor-pointer transition-colors"
+              className="px-2 py-0.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white rounded-lg text-[10px] font-bold border border-neutral-800 flex items-center gap-1 cursor-pointer transition-colors"
               title="Previous Advertiser"
             >
               <ChevronLeft className="w-3 h-3" />
-              <span>Prev Ad</span>
+              <span>Prev</span>
             </button>
 
             <div className="flex items-center gap-1">
@@ -243,8 +243,8 @@ export default function AdSlot({ slot = 'slot_2', className = '' }: AdSlotProps)
                     setActiveAdIndex(idx);
                     setCurrentSlideIndex(0);
                   }}
-                  className={`h-2 rounded-full transition-all cursor-pointer ${
-                    idx === activeAdIndex ? 'w-5 bg-amber-400' : 'w-2 bg-neutral-700 hover:bg-neutral-500'
+                  className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                    idx === activeAdIndex ? 'w-4 bg-amber-400' : 'w-1.5 bg-neutral-700 hover:bg-neutral-500'
                   }`}
                   title={`Switch to Advertiser ${idx + 1}`}
                 />
@@ -256,10 +256,10 @@ export default function AdSlot({ slot = 'slot_2', className = '' }: AdSlotProps)
                 setActiveAdIndex((prev) => (prev + 1) % ads.length);
                 setCurrentSlideIndex(0);
               }}
-              className="px-2.5 py-1 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white rounded-lg text-[10px] font-bold border border-neutral-800 flex items-center gap-1 cursor-pointer transition-colors"
+              className="px-2 py-0.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white rounded-lg text-[10px] font-bold border border-neutral-800 flex items-center gap-1 cursor-pointer transition-colors"
               title="Next Advertiser"
             >
-              <span>Next Ad</span>
+              <span>Next</span>
               <ChevronRight className="w-3 h-3" />
             </button>
           </div>
@@ -267,15 +267,15 @@ export default function AdSlot({ slot = 'slot_2', className = '' }: AdSlotProps)
       </div>
 
       {/* Main Creative Showcase Area (Video, Photo Slideshow, or Banner) */}
-      <div className="my-4 space-y-4 flex-1 flex flex-col justify-center">
+      <div className="my-2 space-y-3 flex-1 flex flex-col justify-center">
         {(activeAd.mediaType === 'video' || activeAd.videoUrl) ? (
           /* 1. Video Player Ad Creative */
-          <div className="relative rounded-2xl overflow-hidden bg-neutral-900 border border-neutral-800 shadow-xl">
+          <div className="relative rounded-2xl overflow-hidden bg-neutral-900 border border-neutral-800 shadow-md">
             {ytEmbed ? (
               <iframe
                 src={ytEmbed}
                 title={activeAd.title}
-                className="w-full h-56 rounded-2xl"
+                className="w-full h-44 rounded-2xl"
                 allow="autoplay; encrypted-media"
                 allowFullScreen
               />
@@ -286,7 +286,7 @@ export default function AdSlot({ slot = 'slot_2', className = '' }: AdSlotProps)
                 autoPlay
                 muted
                 loop
-                className="w-full h-56 object-cover rounded-2xl"
+                className="w-full h-44 object-cover rounded-2xl"
               />
             )}
           </div>
@@ -294,7 +294,7 @@ export default function AdSlot({ slot = 'slot_2', className = '' }: AdSlotProps)
           /* 2. Photo Slideshow Carousel Creative */
           <div 
             onClick={handleClick}
-            className="relative rounded-2xl overflow-hidden aspect-[4/3] bg-neutral-900 border border-neutral-800 group shadow-xl cursor-pointer"
+            className="relative rounded-2xl overflow-hidden aspect-[16/10] max-h-44 bg-neutral-900 border border-neutral-800 group shadow-md cursor-pointer"
           >
             <img
               src={slides[currentSlideIndex % slides.length]}
