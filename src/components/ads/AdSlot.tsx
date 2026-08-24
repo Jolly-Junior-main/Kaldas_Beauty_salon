@@ -118,7 +118,12 @@ export default function AdSlot({ slot = 'slot_2', className = '' }: AdSlotProps)
       }
 
       const list = Array.from(finalMap.values());
-      list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      const getMs = (dateStr?: string) => {
+        if (!dateStr) return 0;
+        const t = new Date(dateStr).getTime();
+        return isNaN(t) ? 0 : t;
+      };
+      list.sort((a, b) => getMs(b.createdAt) - getMs(a.createdAt));
       setAds(list);
     };
 

@@ -20,32 +20,36 @@ class AdEngine {
     if (this.recordedImpressions.has(key)) return;
     this.recordedImpressions.add(key);
 
+    const newImpCount = (ad.impressionsCount || 0) + 1;
+
+    // 1. Write to advertisements collection
     try {
-      // 1. Increment impression count on the Ad document
       const adRef = doc(db, 'advertisements', ad.id);
-      await updateDoc(adRef, {
-        impressionsCount: increment(1)
-      });
+      await setDoc(adRef, { impressionsCount: newImpCount }, { merge: true });
+    } catch (err) {
+      console.warn('Ad impression collection write notice:', err);
+    }
 
-      // 2. Settings document backup update
-      try {
-        const settingsRef = doc(db, 'settings', 'saas_advertisements');
-        const snap = await getDoc(settingsRef);
-        if (snap.exists()) {
-          const list: Advertisement[] = snap.data().list || [];
-          const updated = list.map(a => a.id === ad.id ? { ...a, impressionsCount: (a.impressionsCount || 0) + 1 } : a);
-          await setDoc(settingsRef, { list: updated }, { merge: true });
-        }
-      } catch (e) {}
+    // 2. Settings document backup update
+    try {
+      const settingsRef = doc(db, 'settings', 'saas_advertisements');
+      const snap = await getDoc(settingsRef);
+      if (snap.exists()) {
+        const list: Advertisement[] = snap.data().list || [];
+        const updated = list.map(a => a.id === ad.id ? { ...a, impressionsCount: newImpCount } : a);
+        await setDoc(settingsRef, { list: updated }, { merge: true });
+      }
+    } catch (e) {}
 
-      // 3. Local storage update
-      try {
-        const local = JSON.parse(localStorage.getItem('viavela_local_ads') || '[]');
-        const updatedLocal = local.map((a: any) => a.id === ad.id ? { ...a, impressionsCount: (a.impressionsCount || 0) + 1 } : a);
-        localStorage.setItem('viavela_local_ads', JSON.stringify(updatedLocal));
-      } catch (e) {}
+    // 3. Local storage update
+    try {
+      const local = JSON.parse(localStorage.getItem('viavela_local_ads') || '[]');
+      const updatedLocal = local.map((a: any) => a.id === ad.id ? { ...a, impressionsCount: newImpCount } : a);
+      localStorage.setItem('viavela_local_ads', JSON.stringify(updatedLocal));
+    } catch (e) {}
 
-      // 4. Record analytic event
+    // 4. Record analytic event
+    try {
       const eventRef = doc(collection(db, 'ad_analytics'));
       const record: AdAnalyticsRecord = {
         id: eventRef.id,
@@ -56,11 +60,9 @@ class AdEngine {
         timestamp: new Date().toISOString()
       };
       await setDoc(eventRef, cleanUndefined(record));
+    } catch (e) {}
 
-      window.dispatchEvent(new CustomEvent('viavela_ad_updated', { detail: { adId: ad.id, type: 'impression' } }));
-    } catch (err) {
-      console.warn('Ad impression tracking notice:', err);
-    }
+    window.dispatchEvent(new CustomEvent('viavela_ad_updated', { detail: { adId: ad.id, type: 'impression' } }));
   }
 
   /**
@@ -68,32 +70,36 @@ class AdEngine {
    */
   async trackClick(ad: Advertisement, organizationId: string, slotPosition: string) {
     if (!ad || !ad.id) return;
+    const newClickCount = (ad.clicksCount || 0) + 1;
+
+    // 1. Write to advertisements collection
     try {
-      // 1. Increment click count on the Ad document
       const adRef = doc(db, 'advertisements', ad.id);
-      await updateDoc(adRef, {
-        clicksCount: increment(1)
-      });
+      await setDoc(adRef, { clicksCount: newClickCount }, { merge: true });
+    } catch (err) {
+      console.warn('Ad click collection write notice:', err);
+    }
 
-      // 2. Settings document backup update
-      try {
-        const settingsRef = doc(db, 'settings', 'saas_advertisements');
-        const snap = await getDoc(settingsRef);
-        if (snap.exists()) {
-          const list: Advertisement[] = snap.data().list || [];
-          const updated = list.map(a => a.id === ad.id ? { ...a, clicksCount: (a.clicksCount || 0) + 1 } : a);
-          await setDoc(settingsRef, { list: updated }, { merge: true });
-        }
-      } catch (e) {}
+    // 2. Settings document backup update
+    try {
+      const settingsRef = doc(db, 'settings', 'saas_advertisements');
+      const snap = await getDoc(settingsRef);
+      if (snap.exists()) {
+        const list: Advertisement[] = snap.data().list || [];
+        const updated = list.map(a => a.id === ad.id ? { ...a, clicksCount: newClickCount } : a);
+        await setDoc(settingsRef, { list: updated }, { merge: true });
+      }
+    } catch (e) {}
 
-      // 3. Local storage update
-      try {
-        const local = JSON.parse(localStorage.getItem('viavela_local_ads') || '[]');
-        const updatedLocal = local.map((a: any) => a.id === ad.id ? { ...a, clicksCount: (a.clicksCount || 0) + 1 } : a);
-        localStorage.setItem('viavela_local_ads', JSON.stringify(updatedLocal));
-      } catch (e) {}
+    // 3. Local storage update
+    try {
+      const local = JSON.parse(localStorage.getItem('viavela_local_ads') || '[]');
+      const updatedLocal = local.map((a: any) => a.id === ad.id ? { ...a, clicksCount: newClickCount } : a);
+      localStorage.setItem('viavela_local_ads', JSON.stringify(updatedLocal));
+    } catch (e) {}
 
-      // 4. Record analytic event
+    // 4. Record analytic event
+    try {
       const eventRef = doc(collection(db, 'ad_analytics'));
       const record: AdAnalyticsRecord = {
         id: eventRef.id,
@@ -104,11 +110,7 @@ class AdEngine {
         timestamp: new Date().toISOString()
       };
       await setDoc(eventRef, cleanUndefined(record));
-
-      window.dispatchEvent(new CustomEvent('viavela_ad_updated', { detail: { adId: ad.id, type: 'click' } }));
-    } catch (err) {
-      console.warn('Ad click tracking notice:', err);
-    }
+    } catch (e) {}
 
     if (ad.destinationUrl) {
       window.open(ad.destinationUrl, '_blank', 'noopener,noreferrer');

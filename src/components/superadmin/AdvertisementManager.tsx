@@ -5,8 +5,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { db, cleanUndefined, uploadToStorage } from '../../lib/firebase';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
+import { db, cleanUndefined, uploadToStorage, compressImageToDataUrl } from '../../lib/firebase';
 import { AdMediaType, AdSlotPosition, AdStatus, AdTargetAudience, Advertisement, Organization } from '../../types';
 import { 
   Sparkles, 
@@ -104,13 +104,18 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
     };
   }, []);
 
-  const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setMediaFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setMediaPreview(reader.result as string);
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImageToDataUrl(file, 800, 600, 0.75);
+        setMediaPreview(compressed);
+      } catch (err) {
+        const reader = new FileReader();
+        reader.onloadend = () => setMediaPreview(reader.result as string);
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -285,6 +290,7 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
         localStorage.setItem('viavela_local_ads', JSON.stringify(updatedLocal));
       } catch (err) {}
 
+      window.dispatchEvent(new CustomEvent('viavela_ad_updated', { detail: { adId: mergedAd.id } }));
       setEditingAd(null);
     } catch (err) {
       console.error('Failed to update ad:', err);
@@ -295,13 +301,55 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
   };
 
   const handleToggleStatus = async (ad: Advertisement) => {
-    const newStatus = ad.status === 'active' ? 'paused' : 'active';
-    await updateDoc(doc(db, 'advertisements', ad.id), { status: newStatus });
+    const newStatus: AdStatus = ad.status === 'active' ? 'paused' : 'active';
+    const updatedAd = { ...ad, status: newStatus };
+
+    try {
+      await setDoc(doc(db, 'advertisements', ad.id), { status: newStatus }, { merge: true });
+    } catch (e) {}
+
+    try {
+      const settingsRef = doc(db, 'settings', 'saas_advertisements');
+      const snap = await getDoc(settingsRef);
+      if (snap.exists()) {
+        const list: Advertisement[] = snap.data().list || [];
+        const updatedList = list.map(a => a.id === ad.id ? { ...a, status: newStatus } : a);
+        await setDoc(settingsRef, { list: updatedList }, { merge: true });
+      }
+    } catch (e) {}
+
+    try {
+      const local = JSON.parse(localStorage.getItem('viavela_local_ads') || '[]');
+      const updatedLocal = local.map((a: any) => a.id === ad.id ? { ...a, status: newStatus } : a);
+      localStorage.setItem('viavela_local_ads', JSON.stringify(updatedLocal));
+    } catch (e) {}
+
+    window.dispatchEvent(new CustomEvent('viavela_ad_updated', { detail: { adId: ad.id } }));
   };
 
   const handleDeleteAd = async (adId: string) => {
     if (window.confirm('Are you sure you want to delete this ad campaign?')) {
-      await deleteDoc(doc(db, 'advertisements', adId));
+      try {
+        await deleteDoc(doc(db, 'advertisements', adId));
+      } catch (e) {}
+
+      try {
+        const settingsRef = doc(db, 'settings', 'saas_advertisements');
+        const snap = await getDoc(settingsRef);
+        if (snap.exists()) {
+          const list: Advertisement[] = snap.data().list || [];
+          const updatedList = list.filter(a => a.id !== adId);
+          await setDoc(settingsRef, { list: updatedList }, { merge: true });
+        }
+      } catch (e) {}
+
+      try {
+        const local = JSON.parse(localStorage.getItem('viavela_local_ads') || '[]');
+        const updatedLocal = local.filter((a: any) => a.id !== adId);
+        localStorage.setItem('viavela_local_ads', JSON.stringify(updatedLocal));
+      } catch (e) {}
+
+      window.dispatchEvent(new CustomEvent('viavela_ad_updated', { detail: { adId } }));
     }
   };
 
