@@ -6,7 +6,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, doc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { db, resolveMediaUrl, getGoogleDriveEmbedUrl } from '../../lib/firebase';
 import { adEngine } from '../../lib/adEngine';
 import { useTenant } from '../../lib/tenantContext';
 import { Advertisement, AdSlotPosition } from '../../types';
@@ -168,12 +168,14 @@ export default function AdSlot({ slot = 'slot_2', className = '' }: AdSlotProps)
     }
   }, [activeAd?.id, currentOrganizationId, slot]);
 
-  // Photo Slideshow Auto Play per ad creative
-  const slides = activeAd?.imagesList && activeAd.imagesList.length > 0
+  // Photo Slideshow Auto Play per ad creative (resolves Google Drive links)
+  const rawSlides = activeAd?.imagesList && activeAd.imagesList.length > 0
     ? activeAd.imagesList
     : activeAd?.imageUrl
     ? [activeAd.imageUrl]
     : [];
+
+  const slides = rawSlides.map(url => resolveMediaUrl(url, 'image'));
 
   useEffect(() => {
     if (slides.length > 1) {
@@ -217,6 +219,8 @@ export default function AdSlot({ slot = 'slot_2', className = '' }: AdSlotProps)
   };
 
   const ytEmbed = getYouTubeEmbedUrl(activeAd.videoUrl);
+  const driveEmbed = getGoogleDriveEmbedUrl(activeAd.videoUrl);
+  const resolvedVideoUrl = resolveMediaUrl(activeAd.videoUrl, 'video');
 
   return (
     <div className={`relative bg-neutral-950 border border-neutral-800 rounded-[28px] p-4 sm:p-5 text-white shadow-ios overflow-hidden flex flex-col justify-between space-y-3 animate-fade-in ${className}`}>
@@ -297,9 +301,17 @@ export default function AdSlot({ slot = 'slot_2', className = '' }: AdSlotProps)
                 allow="autoplay; encrypted-media"
                 allowFullScreen
               />
+            ) : driveEmbed ? (
+              <iframe
+                src={driveEmbed}
+                title={activeAd.title}
+                className="w-full h-44 rounded-2xl border-0"
+                allow="autoplay"
+                allowFullScreen
+              />
             ) : (
               <video
-                src={activeAd.videoUrl}
+                src={resolvedVideoUrl}
                 controls
                 autoPlay
                 muted

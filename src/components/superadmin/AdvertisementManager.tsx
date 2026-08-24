@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
-import { db, cleanUndefined, uploadToStorage, compressImageToDataUrl } from '../../lib/firebase';
+import { db, cleanUndefined, uploadToStorage, compressImageToDataUrl, resolveMediaUrl } from '../../lib/firebase';
 import { AdMediaType, AdSlotPosition, AdStatus, AdTargetAudience, Advertisement, Organization } from '../../types';
 import { 
   Sparkles, 
@@ -123,7 +123,7 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
     e.preventDefault();
     setIsSaving(true);
     try {
-      let uploadedUrl = mediaUrlInput.trim();
+      let uploadedUrl = resolveMediaUrl(mediaUrlInput.trim(), mediaType === 'video' ? 'video' : 'image');
       if (mediaFile) {
         try {
           uploadedUrl = await uploadToStorage('ad_media', mediaFile);
@@ -137,9 +137,11 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
         uploadedUrl = mediaPreview || 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&h=450&fit=crop';
       }
 
-      const parsedSlideshow = slideshowUrls.split('\n').map(s => s.trim()).filter(Boolean);
+      const parsedSlideshow = slideshowUrls.split('\n').map(s => resolveMediaUrl(s.trim(), 'image')).filter(Boolean);
       const adRef = doc(collection(db, 'advertisements'));
       const now = new Date();
+
+      const resolvedVideo = mediaType === 'video' ? resolveMediaUrl(videoUrlInput.trim() || uploadedUrl, 'video') : (videoUrlInput.trim() ? resolveMediaUrl(videoUrlInput.trim(), 'video') : undefined);
 
       const newAd: Advertisement = {
         id: adRef.id,
@@ -147,7 +149,7 @@ export default function AdvertisementManager({ organizations }: AdvertisementMan
         companyName: companyName.trim(),
         description: description.trim(),
         imageUrl: mediaType === 'image' || mediaType === 'banner' ? uploadedUrl : undefined,
-        videoUrl: mediaType === 'video' ? (videoUrlInput.trim() || uploadedUrl) : (videoUrlInput.trim() || undefined),
+        videoUrl: resolvedVideo,
         imagesList: parsedSlideshow.length > 0 ? parsedSlideshow : (uploadedUrl ? [uploadedUrl] : undefined),
         destinationUrl: destinationUrl.trim() || 'https://viavelacrm.com',
         contactPhone: contactPhone.trim() || undefined,

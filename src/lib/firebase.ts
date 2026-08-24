@@ -136,6 +136,43 @@ export function cleanUndefined<T extends Record<string, any>>(obj: T): T {
   return clean;
 }
 
+/**
+ * Converts Google Drive share links (and web URLs) into high-speed direct web CDN stream URLs.
+ */
+export function resolveMediaUrl(url?: string, defaultType: 'image' | 'video' = 'image'): string {
+  if (!url) return '';
+  const trimmed = url.trim();
+
+  const driveMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+                     trimmed.match(/id=([a-zA-Z0-9_-]+)/) ||
+                     trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
+
+  if (driveMatch && driveMatch[1]) {
+    const fileId = driveMatch[1];
+    if (defaultType === 'video') {
+      return `https://drive.google.com/uc?export=download&id=${fileId}`;
+    }
+    return `https://lh3.googleusercontent.com/d/${fileId}`;
+  }
+
+  return trimmed;
+}
+
+/**
+ * Returns iframe preview URL for Google Drive videos.
+ */
+export function getGoogleDriveEmbedUrl(url?: string): string | null {
+  if (!url) return null;
+  const driveMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+                     url.match(/id=([a-zA-Z0-9_-]+)/) ||
+                     url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+
+  if (driveMatch && driveMatch[1]) {
+    return `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
+  }
+  return null;
+}
+
 // IMPORTANT: Never throw here — throwing kills the onSnapshot listener permanently
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   console.warn(`[Firestore ${operationType}] ${path || ''}:`, error instanceof Error ? error.message : String(error));
